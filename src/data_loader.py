@@ -22,7 +22,7 @@ class DataLoader:
     def extract_triggers(data):
         """
         Extracts triggers from the given data.
-        Handles both API response and manual JSON file structures.
+        Handles API responses, manual JSON file structures, and single rule dictionaries.
         """
         triggers = []
 
@@ -30,49 +30,72 @@ class DataLoader:
             return triggers
 
         try:
-            def extract_triggers_from_rule_version(version):
+            def extract_triggers_from_rule_version(version, rule_name):
                 """Helper function to extract triggers from a rule version"""
+                extracted_triggers = []
                 if 'triggers' in version and 'adjustmentTriggerForRule' in version['triggers']:
-                    return version['triggers']['adjustmentTriggerForRule']
-                return []
+                    for trigger in version['triggers']['adjustmentTriggerForRule']:
+                        # Create a deep copy of the trigger
+                        trigger_copy = dict(trigger)
+                        # Explicitly set the rule name with a consistent key
+                        trigger_copy['ruleName'] = rule_name
+                        extracted_triggers.append(trigger_copy)
 
-            # Case 1: Direct list of rules (API response)
+                return extracted_triggers
+
+            # Case 1: API response format (list of rules)
             if isinstance(data, list):
-                # print(f"Processing list of {len(data)} rules")
                 for rule in data:
-                    if 'ruleVersions' in rule and 'adjustmentRuleVersion' in rule['ruleVersions']:
-                        for version in rule['ruleVersions']['adjustmentRuleVersion']:
-                            triggers.extend(extract_triggers_from_rule_version(version))
+                    # Extract rule name directly from the rule object
+                    rule_name = rule.get('name')
 
-            # Case 2: Dictionary response
-            elif isinstance(data, dict):
-                # Case 2a: Manual JSON file structure
-                if 'itemsRetrieveResponses' in data:
-                    # print("Processing itemsRetrieveResponses structure")
-                    for response in data['itemsRetrieveResponses']:
-                        if ('responseObjectNode' in response and
-                                'ruleVersions' in response['responseObjectNode'] and
+                    if not rule_name:
+                        rule_name = "Unknown Rule"
+
+                    if 'ruleVersions' in rule and isinstance(rule['ruleVersions'], dict):
+                        versions = rule['ruleVersions'].get('adjustmentRuleVersion', [])
+                        if versions:
+                            for version in versions:
+                                new_triggers = extract_triggers_from_rule_version(version, rule_name)
+                                triggers.extend(new_triggers)
+
+            # Case 2: Single rule dictionary
+            elif isinstance(data, dict) and 'id' in data and 'ruleVersions' in data:
+                rule = data
+                # Extract rule name directly from the rule object
+                rule_name = rule.get('name')
+
+                if not rule_name:
+                    rule_name = "Unknown Rule"
+
+                if 'ruleVersions' in rule and isinstance(rule['ruleVersions'], dict):
+                    versions = rule['ruleVersions'].get('adjustmentRuleVersion', [])
+                    if versions:
+                        for version in versions:
+                            new_triggers = extract_triggers_from_rule_version(version, rule_name)
+                            triggers.extend(new_triggers)
+
+            # Case 3: Manual JSON file format
+            elif isinstance(data, dict) and 'itemsRetrieveResponses' in data:
+                for response in data['itemsRetrieveResponses']:
+                    if 'responseObjectNode' in response:
+                        # Get rule name from responseObjectNode
+                        rule_name = response['responseObjectNode'].get('name')
+                        if not rule_name and 'itemDataInfo' in response:
+                            rule_name = response['itemDataInfo'].get('title')
+                        if not rule_name:
+                            rule_name = 'Unknown Rule'
+
+                        if ('ruleVersions' in response['responseObjectNode'] and
                                 'adjustmentRuleVersion' in response['responseObjectNode']['ruleVersions']):
-
                             versions = response['responseObjectNode']['ruleVersions']['adjustmentRuleVersion']
                             for version in versions:
-                                triggers.extend(extract_triggers_from_rule_version(version))
-
-                # Case 2b: Direct rule versions container
-                elif 'ruleVersions' in data and 'adjustmentRuleVersion' in data['ruleVersions']:
-                    # print("Processing direct ruleVersions structure")
-                    for version in data['ruleVersions']['adjustmentRuleVersion']:
-                        triggers.extend(extract_triggers_from_rule_version(version))
-
-            # print(f"\nTotal triggers extracted: {len(triggers)}")
-            # if triggers:
-            # print(f"First trigger keys: {list(triggers[0].keys())}")
-            # else:
-            # print("No triggers were found in the data")
+                                new_triggers = extract_triggers_from_rule_version(version, rule_name)
+                                triggers.extend(new_triggers)
 
         except Exception as e:
-            # print(f"Error during trigger extraction: {e}")
             import traceback
             traceback.print_exc()
 
         return triggers
+

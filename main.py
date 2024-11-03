@@ -3,6 +3,31 @@ import csv
 import sys
 import os
 
+
+def setup_environment():
+    if getattr(sys, 'frozen', False):
+        # Running in a bundle
+        bundle_dir = sys._MEIPASS
+    else:
+        # Running in normal Python environment
+        bundle_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Add resources path to environment
+    os.environ['RESOURCEPATH'] = os.path.join(bundle_dir, 'resources')
+
+    # Add Qt plugin path
+    if getattr(sys, 'frozen', False):
+        os.environ['QT_PLUGIN_PATH'] = os.path.join(bundle_dir, 'PyQt5', 'Qt5', 'plugins')
+
+
+def get_resource_path(relative_path):
+    """Get the absolute path to a resource file"""
+    if hasattr(sys, '_MEIPASS'):
+        # Running as compiled executable
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Running as script
+    return os.path.join(os.path.abspath("."), relative_path)
+
 from PyQt5.QtCore import QSettings, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
@@ -29,7 +54,7 @@ class MainWindow(QMainWindow):
             os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
 
         # Setup main window
-        self.setWindowTitle("Adjustment Rule Demystifier")
+        self.setWindowTitle("Adjustment Rules Demystifier")
         self.setGeometry(100, 100, 1600, 800)  # Adjust as needed
 
         # Initialize managers
@@ -54,7 +79,7 @@ class MainWindow(QMainWindow):
 
         # Load JSON Button
         self.load_button = QPushButton()
-        self.load_button.setIcon(QIcon("resources/images/open.png"))
+        self.load_button.setIcon(QIcon(get_resource_path("resources/images/open.png")))
         self.load_button.setIconSize(QSize(24, 24))
         self.load_button.setToolTip("Load Adjustment Rule JSON")
         self.load_button.clicked.connect(self.load_json_file)
@@ -64,7 +89,7 @@ class MainWindow(QMainWindow):
 
         # Export CSV Button
         self.export_button = QPushButton()
-        self.export_button.setIcon(QIcon("resources/images/csv.png"))
+        self.export_button.setIcon(QIcon(get_resource_path("resources/images/csv.png")))
         self.export_button.setIconSize(QSize(24, 24))
         self.export_button.setToolTip("Export to CSV")
         self.export_button.clicked.connect(self.export_to_csv)
@@ -82,7 +107,7 @@ class MainWindow(QMainWindow):
 
         # Manage Connections button
         self.manage_connections_btn = QPushButton()
-        self.manage_connections_btn.setIcon(QIcon("resources/images/manage.png"))
+        self.manage_connections_btn.setIcon(QIcon(get_resource_path("resources/images/manage.png")))
         self.manage_connections_btn.setIconSize(QSize(24, 24))
         self.manage_connections_btn.setToolTip("Manage Connections")
         self.manage_connections_btn.clicked.connect(self.show_connection_manager)
@@ -92,7 +117,7 @@ class MainWindow(QMainWindow):
 
         # Connect to Tenant button
         self.connect_btn = QPushButton()
-        self.connect_btn.setIcon(QIcon("resources/images/connect.png"))
+        self.connect_btn.setIcon(QIcon(get_resource_path("resources/images/connect.png")))
         self.connect_btn.setIconSize(QSize(24, 24))
         self.connect_btn.setToolTip("Connect to Tenant")
         self.connect_btn.clicked.connect(self.show_connection_selector)
@@ -102,9 +127,9 @@ class MainWindow(QMainWindow):
 
         # Fetch API Button
         self.fetch_api_button = QPushButton()
-        self.fetch_api_button.setIcon(QIcon("resources/images/get.png"))
+        self.fetch_api_button.setIcon(QIcon(get_resource_path("resources/images/get.png")))
         self.fetch_api_button.setIconSize(QSize(24, 24))
-        self.fetch_api_button.setToolTip("Fetch Adjustment Rules")
+        self.fetch_api_button.setToolTip("Reteieve Adjustment Rules")
         self.fetch_api_button.clicked.connect(self.get_adjustment_rules_api)
         self.fetch_api_button.setEnabled(False)
         self.fetch_api_button.setFixedSize(40, 40)
@@ -156,10 +181,12 @@ class MainWindow(QMainWindow):
         connection_menu = menubar.addMenu('Connections')
 
         manage_action = QAction('Manage Connections...', self)
+        manage_action.setShortcut('Ctrl+M')
         manage_action.triggered.connect(self.show_connection_manager)
         connection_menu.addAction(manage_action)
 
         connect_action = QAction('Connect to Tenant...', self)
+        connect_action.setShortcut('Ctrl+C')
         connect_action.triggered.connect(self.show_connection_selector)
         connection_menu.addAction(connect_action)
 
@@ -292,24 +319,40 @@ class MainWindow(QMainWindow):
         try:
             data = self.api_client.get_adjustment_rules()
 
-            triggers = []
+            #print("\nAPI Response Debug:")
+            #print(f"Data type: {type(data)}")
+            if isinstance(data, list):
+                #print(f"Number of rules: {len(data)}")
+                if data:
+                    triggers = []
 
             # Handle the list response directly
             if isinstance(data, list):
                 for rule in data:
+                    # Extract the rule name from the top level
+                    rule_name = rule.get('name', 'Unknown Rule')
+                    #print(f"Processing rule: {rule_name}")  # Debug print
+
                     if 'ruleVersions' in rule and 'adjustmentRuleVersion' in rule['ruleVersions']:
                         versions = rule['ruleVersions']['adjustmentRuleVersion']
                         for version in versions:
                             if 'triggers' in version and 'adjustmentTriggerForRule' in version['triggers']:
-                                triggers.extend(version['triggers']['adjustmentTriggerForRule'])
+                                # Add the rule name to each trigger
+                                version_triggers = version['triggers']['adjustmentTriggerForRule']
+                                for trigger in version_triggers:
+                                    trigger_copy = dict(trigger)  # Create a copy of the trigger
+                                    trigger_copy['ruleName'] = rule_name  # Add the rule name
+                                    triggers.append(trigger_copy)
+                                    #print(f"Added trigger for rule: {rule_name}")  # Debug print
             else:
                 # Handle other data types through the DataLoader
                 triggers = DataLoader.extract_triggers(data)
 
+            # Verify triggers before display
             if triggers:
                 self.table_view.display_triggers(triggers)
                 QMessageBox.information(self, "Success",
-                                        f"Adjustment Rules fetched and displayed successfully. Found {len(triggers)} triggers.")
+                                        f"Adjustment Rules retrieved successfully. Found {len(rule_name)} rules.")
             else:
                 QMessageBox.warning(self, "No Triggers Found",
                                     "No adjustment triggers were found in the API response.")
@@ -383,16 +426,19 @@ class MainWindow(QMainWindow):
                 with open(file_name, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     # Write headers
-                    headers = [self.table_view.horizontalHeaderItem(i).text() for i in
-                               range(self.table_view.columnCount())]
+                    headers = []
+                    for i in range(self.table_view.columnCount()):
+                        header_item = self.table_view.horizontalHeaderItem(i)
+                        headers.append(header_item.text() if header_item else f"Column {i}")
                     writer.writerow(headers)
                     # Write data rows
                     for row in range(self.table_view.rowCount()):
-                        row_data = []
-                        for column in range(self.table_view.columnCount()):
-                            item = self.table_view.item(row, column)
-                            row_data.append(item.text() if item else "")
-                        writer.writerow(row_data)
+                        if not self.table_view.isRowHidden(row):  # Only export visible rows
+                            row_data = []
+                            for column in range(self.table_view.columnCount()):
+                                item = self.table_view.item(row, column)
+                                row_data.append(item.text() if item else "")
+                            writer.writerow(row_data)
                 QMessageBox.information(self, "Success", "Data exported successfully.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to export data:\n{str(e)}")

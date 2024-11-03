@@ -1,5 +1,4 @@
 # data_loader.py
-
 class DataLoader:
     @staticmethod
     def load_json(file_path):
@@ -22,80 +21,89 @@ class DataLoader:
     def extract_triggers(data):
         """
         Extracts triggers from the given data.
-        Handles API responses, manual JSON file structures, and single rule dictionaries.
+        Handles both API responses and manual JSON file structures.
         """
         triggers = []
+        processed_rules = 0
 
         if not data:
+            print("[DEBUG] No data to process")
             return triggers
 
         try:
-            def extract_triggers_from_rule_version(version, rule_name):
-                """Helper function to extract triggers from a rule version"""
-                extracted_triggers = []
-                if 'triggers' in version and 'adjustmentTriggerForRule' in version['triggers']:
-                    for trigger in version['triggers']['adjustmentTriggerForRule']:
-                        # Create a deep copy of the trigger
-                        trigger_copy = dict(trigger)
-                        # Explicitly set the rule name with a consistent key
-                        trigger_copy['ruleName'] = rule_name
-                        extracted_triggers.append(trigger_copy)
+            # First determine the data source and format
+            print("\n[DEBUG] Analyzing input data format:")
+            print(f"Data type: {type(data)}")
+            if isinstance(data, dict):
+                print("Keys in data:", list(data.keys()))
+            elif isinstance(data, list):
+                print(f"Number of items: {len(data)}")
+                if data:
+                    print("First item keys:", list(data[0].keys()))
 
-                return extracted_triggers
+            def process_single_rule(rule, source_type="api"):
+                """Helper function to process a single rule consistently"""
+                rule_id = str(rule.get('id', 'N/A'))
+                rule_name = rule.get('name', 'Unknown Rule')
 
-            # Case 1: API response format (list of rules)
-            if isinstance(data, list):
-                for rule in data:
-                    # Extract rule name directly from the rule object
-                    rule_name = rule.get('name')
-
-                    if not rule_name:
-                        rule_name = "Unknown Rule"
-
-                    if 'ruleVersions' in rule and isinstance(rule['ruleVersions'], dict):
-                        versions = rule['ruleVersions'].get('adjustmentRuleVersion', [])
-                        if versions:
-                            for version in versions:
-                                new_triggers = extract_triggers_from_rule_version(version, rule_name)
-                                triggers.extend(new_triggers)
-
-            # Case 2: Single rule dictionary
-            elif isinstance(data, dict) and 'id' in data and 'ruleVersions' in data:
-                rule = data
-                # Extract rule name directly from the rule object
-                rule_name = rule.get('name')
-
-                if not rule_name:
-                    rule_name = "Unknown Rule"
+                local_triggers = []
 
                 if 'ruleVersions' in rule and isinstance(rule['ruleVersions'], dict):
                     versions = rule['ruleVersions'].get('adjustmentRuleVersion', [])
-                    if versions:
-                        for version in versions:
-                            new_triggers = extract_triggers_from_rule_version(version, rule_name)
-                            triggers.extend(new_triggers)
+                    if not isinstance(versions, list):
+                        versions = [versions]
 
-            # Case 3: Manual JSON file format
+                    for version in versions:
+                        if 'triggers' in version and 'adjustmentTriggerForRule' in version['triggers']:
+                            version_triggers = version['triggers']['adjustmentTriggerForRule']
+                            if not isinstance(version_triggers, list):
+                                version_triggers = [version_triggers]
+
+                            for trigger in version_triggers:
+                                # Create a new trigger dictionary with rule information
+                                new_trigger = {
+                                    'ruleId': rule_id,
+                                    'ruleName': rule_name,
+                                    'versionNum': version.get('versionNum', 'N/A')
+                                }
+
+                                # Add adjustment allocation if present
+                                if 'adjustmentAllocation' in trigger:
+                                    new_trigger['adjustmentAllocation'] = trigger['adjustmentAllocation']
+
+                                # Add other trigger fields
+                                fields_to_copy = [
+                                    'jobOrLocation', 'jobOrLocationEffectiveDate',
+                                    'laborCategoryEntries', 'payCodes', 'matchAnywhere'
+                                ]
+                                for field in fields_to_copy:
+                                    if field in trigger:
+                                        new_trigger[field] = trigger[field]
+
+                                local_triggers.append(new_trigger)
+                                print(f"Added trigger for rule {rule_id}")
+
+                return local_triggers
+
+            # Handle API response format (list of rules)
+            if isinstance(data, list):
+                for rule in data:
+                    if isinstance(rule, dict):
+                        new_triggers = process_single_rule(rule, "api")
+                        triggers.extend(new_triggers)
+                        processed_rules += 1
+
+            # Handle manual JSON file format
             elif isinstance(data, dict) and 'itemsRetrieveResponses' in data:
                 for response in data['itemsRetrieveResponses']:
                     if 'responseObjectNode' in response:
-                        # Get rule name from responseObjectNode
-                        rule_name = response['responseObjectNode'].get('name')
-                        if not rule_name and 'itemDataInfo' in response:
-                            rule_name = response['itemDataInfo'].get('title')
-                        if not rule_name:
-                            rule_name = 'Unknown Rule'
-
-                        if ('ruleVersions' in response['responseObjectNode'] and
-                                'adjustmentRuleVersion' in response['responseObjectNode']['ruleVersions']):
-                            versions = response['responseObjectNode']['ruleVersions']['adjustmentRuleVersion']
-                            for version in versions:
-                                new_triggers = extract_triggers_from_rule_version(version, rule_name)
-                                triggers.extend(new_triggers)
+                        rule = response['responseObjectNode']
+                        new_triggers = process_single_rule(rule, "manual")
+                        triggers.extend(new_triggers)
+                        processed_rules += 1
 
         except Exception as e:
             import traceback
             traceback.print_exc()
 
         return triggers
-

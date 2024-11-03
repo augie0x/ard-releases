@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
         connection_menu.addAction(manage_action)
 
         connect_action = QAction('Connect to Tenant...', self)
-        connect_action.setShortcut('Ctrl+C')
+        connect_action.setShortcut('Ctrl+T')
         connect_action.triggered.connect(self.show_connection_selector)
         connection_menu.addAction(connect_action)
 
@@ -312,55 +312,60 @@ class MainWindow(QMainWindow):
         self.expires_in = settings.value('expires_in', type=int)
         self.scope = settings.value('scope', type=str)
 
+    # In main.py - Complete get_adjustment_rules_api method
+
     def get_adjustment_rules_api(self):
+        """
+        Retrieves adjustment rules from the API and displays them in the table.
+        """
         if not self.api_client.access_token:
             QMessageBox.warning(self, "Authentication Required", "Please authenticate first.")
             return
+
         try:
-            data = self.api_client.get_adjustment_rules()
+            triggers = self.api_client.get_adjustment_rules()  # Now returns triggers directly
 
-            #print("\nAPI Response Debug:")
-            #print(f"Data type: {type(data)}")
-            if isinstance(data, list):
-                #print(f"Number of rules: {len(data)}")
-                if data:
-                    triggers = []
+            print(f"\n[DEBUG] API Response received and processed")
 
-            # Handle the list response directly
-            if isinstance(data, list):
-                for rule in data:
-                    # Extract the rule name from the top level
-                    rule_name = rule.get('name', 'Unknown Rule')
-                    #print(f"Processing rule: {rule_name}")  # Debug print
+            if isinstance(triggers, list):
+                print(f"[DEBUG] Processing {len(triggers)} triggers")
 
-                    if 'ruleVersions' in rule and 'adjustmentRuleVersion' in rule['ruleVersions']:
-                        versions = rule['ruleVersions']['adjustmentRuleVersion']
-                        for version in versions:
-                            if 'triggers' in version and 'adjustmentTriggerForRule' in version['triggers']:
-                                # Add the rule name to each trigger
-                                version_triggers = version['triggers']['adjustmentTriggerForRule']
-                                for trigger in version_triggers:
-                                    trigger_copy = dict(trigger)  # Create a copy of the trigger
-                                    trigger_copy['ruleName'] = rule_name  # Add the rule name
-                                    triggers.append(trigger_copy)
-                                    #print(f"Added trigger for rule: {rule_name}")  # Debug print
+                if triggers:
+                    self.table_view.display_triggers(triggers)
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        f"Adjustment Rules retrieved successfully. Found {len(triggers)} triggers."
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "No Triggers Found",
+                        "No adjustment triggers were found in the API response."
+                    )
             else:
-                # Handle other data types through the DataLoader
-                triggers = DataLoader.extract_triggers(data)
-
-            # Verify triggers before display
-            if triggers:
-                self.table_view.display_triggers(triggers)
-                QMessageBox.information(self, "Success",
-                                        f"Adjustment Rules retrieved successfully. Found {len(rule_name)} rules.")
-            else:
-                QMessageBox.warning(self, "No Triggers Found",
-                                    "No adjustment triggers were found in the API response.")
+                # Handle case where response is not a list
+                print(f"[DEBUG] Unexpected response type: {type(triggers)}")
+                QMessageBox.warning(
+                    self,
+                    "Invalid Response",
+                    "Received an unexpected response format from the API."
+                )
 
         except Exception as e:
             import traceback
+            print(f"[ERROR] Exception in get_adjustment_rules_api:")
             traceback.print_exc()
-            QMessageBox.critical(self, "Error", f"An error occurred while fetching Adjustment Rules:\n{str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"An error occurred while fetching Adjustment Rules:\n{str(e)}"
+            )
+            return None
+
+        finally:
+            # Ensure the UI is responsive after the operation
+            QApplication.processEvents()
 
     def load_json_file(self):
         options = QFileDialog.Options()
@@ -376,17 +381,15 @@ class MainWindow(QMainWindow):
                 data = DataLoader.load_json(file_name)
                 if data:
                     triggers = DataLoader.extract_triggers(data)
-                    # print(f"Number of triggers found: {len(triggers)}")
+                # print(f"Number of triggers found: {len(triggers)}")
 
-                    if triggers:
-                        self.table_view.display_triggers(triggers)
-                        QMessageBox.information(self, "Success",
-                                                f"JSON file loaded and parsed successfully. Found {len(triggers)} triggers.")
-                    else:
-                        QMessageBox.warning(self, "No Triggers Found",
-                                            "No adjustment triggers were found in the JSON file. Please verify the file format.")
+                if triggers:
+                    self.table_view.display_triggers(triggers)
+                    QMessageBox.information(self, "Success",
+                                            f"JSON file loaded and parsed successfully. Found {len(data.get('itemsRetrieveResponses', []))} triggers.")
                 else:
-                    QMessageBox.critical(self, "Error", "Failed to load JSON file or file is empty.")
+                    QMessageBox.warning(self, "No Triggers Found",
+                                        "No adjustment triggers were found in the JSON file. Please verify the file format.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error processing JSON file:\n{str(e)}")
                 import traceback

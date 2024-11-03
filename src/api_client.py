@@ -256,17 +256,15 @@ class APIClient:
 
             if response.status_code == 200:
                 data = response.json()
-                # print("\nAPI Response Debug:")
-                # print(f"Response type: {type(data)}")
                 if isinstance(data, list):
-                    # print(f"Number of items in list: {len(data)}")
-                    if len(data) > 0:
-                        # print("\nFirst item in response:")
-                        import json
-                        # print(json.dumps(data[0], indent=2)[:1000])
+                    if data:
+                        first_rule = data[0]
+                        # Process and extract triggers
+                        from src.data_loader import DataLoader  # Make sure to import at the top
+                        triggers = DataLoader.extract_triggers(data)
+                        return triggers  # Return triggers instead of raw data
 
-                        # Return the list directly - no need to convert structure
-                        return data
+                return data
 
                 return data
             else:

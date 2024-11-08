@@ -53,9 +53,6 @@ class TableView(QTableWidget):
             "Bonus Pay Code"  # 20
         ]
 
-        # Print header count for verification
-        print(f"Number of headers: {len(headers)}")
-
         # Verify the correct number of headers
         assert len(headers) == total_columns, f"Expected {total_columns} headers, got {len(headers)}"
 

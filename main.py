@@ -11,7 +11,7 @@ from PyQt5 import Qt
 from PyQt5.QtCore import QSettings, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox, QSizePolicy, QSpacerItem
 from qt_material import apply_stylesheet
 
 from src.api_client import APIClient
@@ -171,8 +171,20 @@ class MainWindow(QMainWindow):
         # Add left buttons group to top layout
         top_layout.addLayout(left_buttons_layout)
 
-        # Add stretch to push search to the right
+        # Push search bar to the right
         top_layout.addStretch()
+
+        # Rules filter combo box
+        self.rule_filter_combo = QComboBox()
+        self.rule_filter_combo.setPlaceholderText("Select a rule...")
+        self.rule_filter_combo.setFixedWidth(350)
+        self.rule_filter_combo.currentIndexChanged.connect(self.filter_by_rule)
+        top_layout.addWidget(self.rule_filter_combo)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        top_layout.addWidget(separator)
 
         # Search Layout (right side)
         search_layout = QHBoxLayout()
@@ -181,6 +193,7 @@ class MainWindow(QMainWindow):
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Enter search term...")
+        self.search_bar.setMaximumWidth(400)
         self.search_bar.textChanged.connect(self.search_table)
         search_layout.addWidget(self.search_bar)
 
@@ -268,7 +281,7 @@ class MainWindow(QMainWindow):
 
     def update_connection_status(self, connected=False, tenant_name=None):
         """Update UI elements based on connection status"""
-        print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
+        #print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
         self.fetch_api_button.setEnabled(connected)
         self.update_rules_button.setEnabled(connected)
 
@@ -357,13 +370,11 @@ class MainWindow(QMainWindow):
         try:
             triggers = self.api_client.get_adjustment_rules()  # Now returns triggers directly
 
-            print(f"\n[DEBUG] API Response received and processed")
-
             if isinstance(triggers, list):
-                print(f"[DEBUG] Processing {len(triggers)} triggers")
 
                 if triggers:
                     self.table_view.display_triggers(triggers)
+                    self.populate_rule_filter_combo(triggers)
                     QMessageBox.information(
                         self,
                         "Success",
@@ -415,6 +426,7 @@ class MainWindow(QMainWindow):
 
                 if triggers:
                     self.table_view.display_triggers(triggers)
+                    self.populate_rule_filter_combo(triggers)
                     QMessageBox.information(self, "Success",
                                             f"JSON file loaded and parsed successfully.")
                 else:
@@ -671,6 +683,42 @@ class MainWindow(QMainWindow):
             import traceback
             traceback.print_exc()
 
+    def populate_rule_filter_combo(self, triggers):
+        """Populate the combo box with unique rule names from triggers."""
+        self.rule_filter_combo.clear()
+        rule_names = set()
+
+        for trigger in triggers:
+            if 'ruleName' in trigger:
+                rule_names.add(trigger['ruleName'])
+
+        self.rule_filter_combo.addItem("All Rules")
+
+        for rule_name in sorted(rule_names):
+            if rule_name:
+                self.rule_filter_combo.addItem(rule_name)
+
+    from PyQt5.QtWidgets import QApplication
+
+    def filter_by_rule(self):
+        """Filter the table based on the selected rule name from the combo box."""
+        selected_rule = self.rule_filter_combo.currentText()
+
+        # If "All Rules" is selected, make all rows visible
+        if selected_rule == "All Rules":
+            for row in range(self.table_view.rowCount()):
+                self.table_view.setRowHidden(row, False)
+        else:
+            # Filter the rows to show only those that match the selected rule name
+            for row in range(self.table_view.rowCount()):
+                item = self.table_view.item(row, 1)  # Assuming the rule name is in column 0
+                if item and item.text() == selected_rule:
+                    self.table_view.setRowHidden(row, False)  # Show row if it matches
+                else:
+                    self.table_view.setRowHidden(row, True)  # Hide row if it does not match
+
+        # Refresh the UI to ensure changes are displayed correctly
+        QApplication.processEvents()
 
 
 def main():

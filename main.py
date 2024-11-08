@@ -24,22 +24,6 @@ from src.table_view import TableView
 from src.utils import SettingsManager
 from src.adjustment_rules_utils import AdjustmentRuleUpdater
 
-def setup_environment():
-    if getattr(sys, 'frozen', False):
-        # Running in a bundle
-        bundle_dir = sys._MEIPASS
-    else:
-        # Running in normal Python environment
-        bundle_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Add resources path to environment
-    os.environ['RESOURCEPATH'] = os.path.join(bundle_dir, 'resources')
-
-    # Add Qt plugin path
-    if getattr(sys, 'frozen', False):
-        os.environ['QT_PLUGIN_PATH'] = os.path.join(bundle_dir, 'PyQt5', 'Qt5', 'plugins')
-
-
 def get_resource_path(relative_path):
     """Get the absolute path to a resource file"""
     if hasattr(sys, '_MEIPASS'):

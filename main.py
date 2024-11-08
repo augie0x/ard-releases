@@ -1,8 +1,28 @@
 # main.py
 import csv
+import json
 import sys
 import os
+from datetime import datetime
+import zipfile
 
+import requests
+from PyQt5 import Qt
+from PyQt5.QtCore import QSettings, QSize
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog
+from qt_material import apply_stylesheet
+
+from src.api_client import APIClient
+from src.auth_dialog import AuthDialog
+from src.connection_dialog import ConnectionDialog
+from src.connection_manager import ConnectionManager
+from src.connection_selection import ConnectionSelectionDialog
+from src.data_loader import DataLoader
+from src.table_view import TableView
+from src.utils import SettingsManager
+from src.adjustment_rules_utils import AdjustmentRuleUpdater
 
 def setup_environment():
     if getattr(sys, 'frozen', False):
@@ -28,22 +48,6 @@ def get_resource_path(relative_path):
     # Running as script
     return os.path.join(os.path.abspath("."), relative_path)
 
-from PyQt5.QtCore import QSettings, QSize
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame
-from qt_material import apply_stylesheet
-
-from src.api_client import APIClient
-from src.auth_dialog import AuthDialog
-from src.connection_dialog import ConnectionDialog
-from src.connection_manager import ConnectionManager
-from src.connection_selection import ConnectionSelectionDialog
-from src.data_loader import DataLoader
-from src.table_view import TableView
-from src.utils import SettingsManager
-
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -56,6 +60,7 @@ class MainWindow(QMainWindow):
         # Setup main window
         self.setWindowTitle("Adjustment Rules Demystifier")
         self.setGeometry(100, 100, 1600, 800)  # Adjust as needed
+        self.statusBar = self.statusBar()
 
         # Initialize managers
         self.api_client = APIClient()
@@ -136,6 +141,33 @@ class MainWindow(QMainWindow):
         self.fetch_api_button.setFlat(True)
         left_buttons_layout.addWidget(self.fetch_api_button)
 
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        left_buttons_layout.addWidget(separator)
+
+        # Update Rules Button
+        self.update_rules_button = QPushButton()
+        self.update_rules_button.setIcon(QIcon(get_resource_path("resources/images/update.png")))
+        self.update_rules_button.setIconSize(QSize(24, 24))
+        self.update_rules_button.setToolTip("Update Adjustment Rules")
+        self.update_rules_button.clicked.connect(self.update_adjustment_rules)
+        self.update_rules_button.setEnabled(False)
+        self.update_rules_button.setFixedSize(40, 40)
+        self.update_rules_button.setFlat(True)
+        left_buttons_layout.addWidget(self.update_rules_button)
+
+        # Export JSON Button
+        self.export_json_button = QPushButton()
+        self.export_json_button.setIcon(QIcon(get_resource_path("resources/images/json.png")))
+        self.export_json_button.setIconSize(QSize(24, 24))
+        self.export_json_button.setToolTip("Export as JSON")
+        self.export_json_button.clicked.connect(self.export_to_json)
+        self.export_json_button.setFixedSize(40, 40)
+        self.export_json_button.setFlat(True)
+        left_buttons_layout.addWidget(self.export_json_button)
+
+
         # Add left buttons group to top layout
         top_layout.addLayout(left_buttons_layout)
 
@@ -161,6 +193,10 @@ class MainWindow(QMainWindow):
         # Table Widget to Display Adjustment Rules
         self.table_view = TableView()
         main_layout.addWidget(self.table_view)
+
+        # API retrieve and update buttons default state
+        self.fetch_api_button.setEnabled(False)
+        self.update_rules_button.setEnabled(False)
 
     def create_menu_bar(self):
         """Create the menu bar with connection management options"""
@@ -226,20 +262,21 @@ class MainWindow(QMainWindow):
         """Disconnect from current tenant"""
         self.api_client.set_tokens(None, None, None)
         self.fetch_api_button.setEnabled(False)
+        self.update_rules_button.setEnabled(False)
         # self.connect_btn.setText("Connect to Tenant")
         QMessageBox.information(self, "Disconnected", "Successfully disconnected from tenant.")
 
     def update_connection_status(self, connected=False, tenant_name=None):
         """Update UI elements based on connection status"""
+        print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
         self.fetch_api_button.setEnabled(connected)
-        # if connected and tenant_name:
-        # self.connect_btn.setText(f"Connected: {tenant_name}")
-        # else:
-        # self.connect_btn.setText("Connect to Tenant")
+        self.update_rules_button.setEnabled(connected)
 
-    # In main.py, add to the MainWindow class:
-
-    # In main.py
+        if hasattr(self, 'statusBar'):
+            if connected and tenant_name:
+                self.statusBar.showMessage(f"Connected to: {tenant_name}")
+            else:
+                self.statusBar.showMessage("Not connected")
 
     def authenticate_with_saved_connection(self, connection_name):
         """Handle authentication when switching connections"""
@@ -249,7 +286,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            # First, clear existing connection state
+            # Clear existing connection state
             self.api_client.clear_tokens()
 
             # Switch to new connection
@@ -261,21 +298,18 @@ class MainWindow(QMainWindow):
                 if not self.api_client.access_token or not self.api_client.refresh_token:
                     QMessageBox.warning(self, "Warning", "Connection successful but token state is incomplete.")
                     self.update_connection_status(False)
+                    self.fetch_api_button.setEnabled(False)
+                    self.update_rules_button.setEnabled(False)
                     return
             else:
                 self.update_connection_status(False)
+                self.fetch_api_button.setEnabled(False)
+                self.update_rules_button.setEnabled(False)
                 QMessageBox.critical(self, "Error", "Failed to connect. Please check your credentials.")
 
         except Exception as e:
             QMessageBox.critical(self, "Authentication Failed", str(e))
             self.update_connection_status(False)
-
-    def update_connection_status(self, connected=False, tenant_name=None):
-        self.fetch_api_button.setEnabled(connected)
-        # if connected and tenant_name:
-        # self.connect_btn.setText(f"Connected: {tenant_name}")
-        # else:
-        # self.connect_btn.setText("Connect to Tenant")
 
     def update_auth_status(self):
         """Update UI elements based on authentication status"""
@@ -312,8 +346,6 @@ class MainWindow(QMainWindow):
         self.expires_in = settings.value('expires_in', type=int)
         self.scope = settings.value('scope', type=str)
 
-    # In main.py - Complete get_adjustment_rules_api method
-
     def get_adjustment_rules_api(self):
         """
         Retrieves adjustment rules from the API and displays them in the table.
@@ -335,7 +367,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self,
                         "Success",
-                        f"Adjustment Rules retrieved successfully. Found {len(triggers)} triggers."
+                        f"Adjustment Rules retrieved successfully."
                     )
                 else:
                     QMessageBox.warning(
@@ -345,7 +377,6 @@ class MainWindow(QMainWindow):
                     )
             else:
                 # Handle case where response is not a list
-                print(f"[DEBUG] Unexpected response type: {type(triggers)}")
                 QMessageBox.warning(
                     self,
                     "Invalid Response",
@@ -354,7 +385,6 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             import traceback
-            print(f"[ERROR] Exception in get_adjustment_rules_api:")
             traceback.print_exc()
             QMessageBox.critical(
                 self,
@@ -386,7 +416,7 @@ class MainWindow(QMainWindow):
                 if triggers:
                     self.table_view.display_triggers(triggers)
                     QMessageBox.information(self, "Success",
-                                            f"JSON file loaded and parsed successfully. Found {len(data.get('itemsRetrieveResponses', []))} triggers.")
+                                            f"JSON file loaded and parsed successfully.")
                 else:
                     QMessageBox.warning(self, "No Triggers Found",
                                         "No adjustment triggers were found in the JSON file. Please verify the file format.")
@@ -414,37 +444,55 @@ class MainWindow(QMainWindow):
         """
         Exports the table data to a CSV file.
         """
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save as CSV",
-            "",
-            "CSV Files (*.csv);;All Files (*)",
-            options=options
-        )
-        if file_name:
-            if not file_name.endswith(".csv"):
-                file_name += ".csv"
-            try:
-                with open(file_name, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    # Write headers
-                    headers = []
-                    for i in range(self.table_view.columnCount()):
-                        header_item = self.table_view.horizontalHeaderItem(i)
-                        headers.append(header_item.text() if header_item else f"Column {i}")
-                    writer.writerow(headers)
-                    # Write data rows
-                    for row in range(self.table_view.rowCount()):
-                        if not self.table_view.isRowHidden(row):  # Only export visible rows
-                            row_data = []
-                            for column in range(self.table_view.columnCount()):
-                                item = self.table_view.item(row, column)
-                                row_data.append(item.text() if item else "")
-                            writer.writerow(row_data)
-                QMessageBox.information(self, "Success", "Data exported successfully.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to export data:\n{str(e)}")
+        try:
+            # Get table data
+            data = self.get_table_data()
+            if not data:
+                QMessageBox.warning(self, "No Data", "No data to export.")
+                return
+
+            options = QFileDialog.Options()
+            file_name, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save as CSV",
+                "",
+                "CSV Files (*.csv);;All Files (*)",
+                options=options
+            )
+            if file_name:
+                if not file_name.endswith(".csv"):
+                    file_name += ".csv"
+
+                # Exporting data to CSV file
+                try:
+                    with open(file_name, 'w', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
+                        # Write headers
+                        headers = []
+                        for i in range(self.table_view.columnCount()):
+                            header_item = self.table_view.horizontalHeaderItem(i)
+                            headers.append(header_item.text() if header_item else f"Column {i}")
+                        writer.writerow(headers)
+
+                        # Write data rows
+                        for row in range(self.table_view.rowCount()):
+                            if not self.table_view.isRowHidden(row):  # Only export visible rows
+                                row_data = []
+                                for column in range(self.table_view.columnCount()):
+                                    item = self.table_view.item(row, column)
+                                    row_data.append(item.text() if item else "")
+                                writer.writerow(row_data)
+
+                    QMessageBox.information(self, "Success", "Data exported successfully.")
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to export data:\n{str(e)}")
+                    import traceback
+                    traceback.print_exc()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export CSV:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def resource_path(relative_path):
         """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -456,8 +504,173 @@ class MainWindow(QMainWindow):
 
         return os.path.join(base_path, relative_path)
 
-    # Then use it for loading resources:
     icon_path = resource_path("resources/images/icon.ico")
+
+    # Update Adjustment Rules functions
+    def get_table_data(self):
+        """Get all data from the table"""
+        data = []
+        for row in range(self.table_view.rowCount()):
+            row_data = {}
+            for col in range(self.table_view.columnCount()):
+                header = self.table_view.horizontalHeaderItem(col).text()
+                item = self.table_view.item(row, col)
+                value = item.text() if item else ""
+
+                # Clean up version number
+                if header == "Version Number" and value.startswith("Version "):
+                    value = value.replace("Version ", "")
+
+                # Don't include empty or N/A values
+                if value and value.lower() != "n/a":
+                    row_data[header] = value
+                else:
+                    row_data[header] = ""
+
+            data.append(row_data)
+        return data
+
+    def update_adjustment_rules(self):
+        """Updates adjustment rules via API"""
+        if not self.api_client.access_token:
+            QMessageBox.warning(self, "Authentication Required", "Please authenticate first.")
+            return
+
+        try:
+            # Get modified data from table
+            modified_data = []
+            for row, col in self.table_view.modified_cells:
+                rule_data = {}
+                for column in range(self.table_view.columnCount()):
+                    header = self.table_view.horizontalHeaderItem(column).text()
+                    item = self.table_view.item(row, column)
+                    rule_data[header] = item.text() if item else ""
+                modified_data.append(rule_data)
+
+            if not modified_data:
+                QMessageBox.information(self, "No Changes", "No modifications detected.")
+                return
+
+            # Get rules grouped by ID
+            rules_by_id = AdjustmentRuleUpdater.create_update_payload(modified_data, separate_rules=True)
+
+            # Setup progress dialog
+            progress = QProgressDialog("Updating rules...", "Cancel", 0, len(rules_by_id), self)
+            progress.setWindowModality(Qt.Qt.WindowModal)
+
+            successful_updates = 0
+            failed_updates = []
+
+            # Update each rule individually
+            for i, (rule_id, rule_data) in enumerate(rules_by_id.items()):
+                if progress.wasCanceled():
+                    break
+
+                try:
+                    # Create URL with specific rule ID
+                    url = f"{self.api_client.base_hostname}/api/v1/timekeeping/setup/adjustment_rules/{rule_id}"
+                    headers = {
+                        'Authorization': f"{self.api_client.token_type} {self.api_client.access_token}",
+                        'Content-Type': 'application/json'
+                    }
+
+                    # Send update request for this rule
+                    response = requests.put(url, json=rule_data, headers=headers)
+
+                    if response.status_code == 200:
+                        successful_updates += 1
+                    else:
+                        error_msg = f"Failed to update rule {rule_id}: {response.text}"
+                        failed_updates.append((rule_id, error_msg))
+                        print(f"Error updating rule {rule_id}: {response.text}")  # For debugging
+
+                except Exception as e:
+                    error_msg = f"Error processing rule {rule_id}: {str(e)}"
+                    failed_updates.append((rule_id, error_msg))
+                    print(error_msg)  # For debugging
+
+                finally:
+                    progress.setValue(i + 1)
+
+            progress.close()
+
+            # Show results
+            if successful_updates > 0:
+                success_msg = f"Successfully updated {successful_updates} rule(s)."
+                if failed_updates:
+                    success_msg += f"\n\nFailed to update {len(failed_updates)} rule(s)."
+                    for rule_id, error in failed_updates:
+                        success_msg += f"\n\nRule {rule_id}: {error}"
+                    QMessageBox.warning(self, "Update Results", success_msg)
+                else:
+                    QMessageBox.information(self, "Success", success_msg)
+
+                # Refresh display only if there were successful updates
+                self.get_adjustment_rules_api()
+
+            elif failed_updates:
+                error_msg = "Failed to update any rules:\n\n"
+                for rule_id, error in failed_updates:
+                    error_msg += f"Rule {rule_id}: {error}\n"
+                QMessageBox.critical(self, "Update Failed", error_msg)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to update rules:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def export_to_json(self):
+        """Export adjustment rules to JSON file"""
+        try:
+            # Get table data
+            data = self.get_table_data()
+
+            if not data:
+                QMessageBox.warning(self, "No Data", "No data to export.")
+                return
+
+            # Create the export payload - get separate rules for file export
+            rules_by_id = AdjustmentRuleUpdater.create_update_payload(data, separate_rules=True)
+
+            if not rules_by_id:
+                QMessageBox.warning(self, "No Rules", "No valid rules found to export.")
+                return
+
+            # Get file name for saving
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"AdjustmentRules_{timestamp}"
+
+            options = QFileDialog.Options()
+            file_name, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export as JSON",
+                default_name,
+                "ZIP Files (*.zip)",
+                options=options
+            )
+
+            if file_name:
+                if not file_name.endswith('.zip'):
+                    file_name += '.zip'
+
+                # Create ZIP file with JSON
+                with zipfile.ZipFile(file_name, 'w') as zf:
+                    for rule_id, rule_data in rules_by_id.items():
+                        rule_name = rule_data['name'].replace(' ', '_')
+                        json_content = json.dumps(rule_data, indent=2)
+                        zf.writestr(f'AdjustmentRule_{rule_id}_{rule_name}/response.json', json_content)
+
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Exported {len(rules_by_id)} adjustment rules successfully."
+                )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export JSON:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
+
 
 
 def main():

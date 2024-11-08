@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMenu, 
 class TableView(QTableWidget):
     def __init__(self):
         super().__init__()
+        self.modified_cells = set()
         self.setup_table()
         self.modified_cells = set()
         self.clipboard = QApplication.clipboard()
@@ -24,19 +25,39 @@ class TableView(QTableWidget):
 
     def setup_table(self):
         # Define columns, including separate columns for Bonus and Wage details
-        self.setColumnCount(19)
-
+        total_columns = 21
+        self.setColumnCount(total_columns)
         headers = [
-            "Rule ID","Rule Name", "Trigger Version", "Adjustment Type", "Version Number",
-            "Match Anywhere", "Job or Location", "Effective Date",
-            "Labor Category Entries", "Pay Codes",
+            "Rule ID",  # 0
+            "Rule Name",  # 1
+            "Trigger Version",  # 2
+            "Adjustment Type",  # 3
+            "Version Number",  # 4
+            "Match Anywhere",  # 5
+            "Job or Location",  # 6
+            "Effective Date",  # 7
+            "Labor Category Entries",  # 8
+            "Trigger Pay Codes",  # 9
             # Bonus Details
-            "Bonus Rate Amount", "Bonus Rate Hourly Rate", "Once Per Day",
-            "Time Period", "Job Code Type", "Week Start",
+            "Bonus Rate Amount",  # 10
+            "Bonus Rate Hourly Rate",  # 11
+            "Once Per Day",  # 12
+            "Time Period",  # 13
+            "Job Code Type",  # 14
+            "Week Start",  # 15
             # Wage Details
-            "Amount", "Override If Primary Job Switch", "Type", "Use Highest Wage Switch",
-            "Other Details"
+            "Amount",  # 16
+            "Override If Primary Job Switch",  # 17
+            "Type",  # 18
+            "Use Highest Wage Switch",  # 19
+            "Bonus Pay Code"  # 20
         ]
+
+        # Print header count for verification
+        print(f"Number of headers: {len(headers)}")
+
+        # Verify the correct number of headers
+        assert len(headers) == total_columns, f"Expected {total_columns} headers, got {len(headers)}"
 
         self.setHorizontalHeaderLabels(headers)
 
@@ -208,6 +229,13 @@ class TableView(QTableWidget):
             self.modified_cells.add((index.row(), index.column()))
             self.item(index.row(), index.column()).setBackground(QColor("#FFFF99"))
 
+    def __parse_boolean(self, value):
+        """Helper method to parse boolean values"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() == 'true'
+        return False
 
     def resizeEvent(self, event):
         """Override resize event to adjust columns when window is resized"""
@@ -272,32 +300,33 @@ class TableView(QTableWidget):
             adjustment_type = adjustment_allocation.get("adjustmentType", "Unknown").strip()
 
             # Trigger Version
-            version_num = trigger.get('versionNum', 'N/A')
-            trigger_version = f"Version {version_num}"
-            self.setItem(row, 2, QTableWidgetItem(str(trigger_version)))
+            version_id = trigger.get('versionId', '')
+            version_num = trigger.get('versionNum', '')
+            version_text = f"{version_num}" if version_num else ''
+            self.setItem(row, 2, QTableWidgetItem(version_text))
 
             # Adjustment Type (Shifted to index 3)
             adjustment_type_item = QTableWidgetItem(adjustment_type)
             self.setItem(row, 3, adjustment_type_item)
 
             # Version Number (Shifted to index 4)
-            version_num = str(trigger.get("versionNum", "N/A"))
-            self.setItem(row, 4, QTableWidgetItem(version_num))
+            self.setItem(row, 4, QTableWidgetItem(str(version_num) if version_num else ''))
 
             # Match Anywhere (Shifted to index 5)
-            match_anywhere = str(trigger.get("matchAnywhere", False))
-            self.setItem(row, 5, QTableWidgetItem(match_anywhere))
+            match_anywhere = self.__parse_boolean(trigger.get("matchAnywhere", False))
+            self.setItem(row, 5, QTableWidgetItem(str(match_anywhere)))
 
             # Job or Location (Shifted to index 6)
-            job_or_location = self.format_dict(trigger.get("jobOrLocation", {}))
-            self.setItem(row, 6, QTableWidgetItem(job_or_location))
+            job_or_location = trigger.get("jobOrLocation", {})
+            job_or_location_text = job_or_location.get('qualifier', '') if job_or_location else ''
+            self.setItem(row, 6, QTableWidgetItem(job_or_location_text))
 
             # Effective Date (Shifted to index 7)
-            effective_date = trigger.get("jobOrLocationEffectiveDate", "N/A")
+            effective_date = trigger.get("jobOrLocationEffectiveDate", '')
             self.setItem(row, 7, QTableWidgetItem(effective_date))
 
             # Labor Category Entries (Shifted to index 8)
-            labor_category_entries = trigger.get("laborCategoryEntries", "N/A")
+            labor_category_entries = trigger.get("laborCategoryEntries", '')
             self.setItem(row, 8, QTableWidgetItem(str(labor_category_entries)))
 
             # Pay Codes (Shifted to index 9)
@@ -305,15 +334,34 @@ class TableView(QTableWidget):
             pay_codes_str = self.format_pay_codes(pay_codes)
             self.setItem(row, 9, QTableWidgetItem(pay_codes_str))
 
+            adjustment_allocation = trigger.get("adjustmentAllocation", {}).get("adjustmentAllocation", {})
+            adjustment_type = adjustment_allocation.get("adjustmentType", "Unknown").strip()
+
+            bonus_pay_code_column = self.columnCount() - 1 # Always use the last column
+            bonus_pay_code_column = self.columnCount() - 1
+
+            if adjustment_type == "Bonus":
+                # First try to get the bonus pay code from our extracted data
+                bonus_pay_code = trigger.get('bonusPayCode', {})
+
+                # Get the pay code name
+                bonus_pay_code_name = bonus_pay_code.get('name', '')
+
+                # Create the table item
+                bonus_pay_code_item = QTableWidgetItem(bonus_pay_code_name)
+                self.setItem(row, bonus_pay_code_column, bonus_pay_code_item)
+            else:
+                self.setItem(row, bonus_pay_code_column, QTableWidgetItem("N/A"))
+
             # Adjustment Allocation Details (starting from index 10)
             if adjustment_type == "Bonus":
                 # Populate Bonus-specific columns (indices 10-15)
-                self.setItem(row, 10, QTableWidgetItem(str(adjustment_allocation.get("bonusRateAmount", "N/A"))))
-                self.setItem(row, 11, QTableWidgetItem(str(adjustment_allocation.get("bonusRateHourlyRate", "N/A"))))
+                self.setItem(row, 10, QTableWidgetItem(str(adjustment_allocation.get("bonusRateAmount", ''))))
+                self.setItem(row, 11, QTableWidgetItem(str(adjustment_allocation.get("bonusRateHourlyRate", ''))))
                 self.setItem(row, 12, QTableWidgetItem(str(adjustment_allocation.get("oncePerDay", False))))
-                self.setItem(row, 13, QTableWidgetItem(str(adjustment_allocation.get("timePeriod", "N/A"))))
-                self.setItem(row, 14, QTableWidgetItem(str(adjustment_allocation.get("jobCodeType", "N/A"))))
-                self.setItem(row, 15, QTableWidgetItem(str(adjustment_allocation.get("weekStart", "N/A"))))
+                self.setItem(row, 13, QTableWidgetItem(str(adjustment_allocation.get("timePeriod", ''))))
+                self.setItem(row, 14, QTableWidgetItem(str(adjustment_allocation.get("jobCodeType", ''))))
+                self.setItem(row, 15, QTableWidgetItem(str(adjustment_allocation.get("weekStart", ''))))
 
                 # Clear Wage-specific columns (indices 16-19)
                 for col in range(16, 20):
@@ -325,10 +373,10 @@ class TableView(QTableWidget):
                     self.setItem(row, col, QTableWidgetItem("N/A"))
 
                 # Populate Wage-specific columns (indices 16-19)
-                self.setItem(row, 16, QTableWidgetItem(str(adjustment_allocation.get("amount", "N/A"))))
+                self.setItem(row, 16, QTableWidgetItem(str(adjustment_allocation.get("amount", ''))))
                 self.setItem(row, 17,
                              QTableWidgetItem(str(adjustment_allocation.get("overrideIfPrimaryJobSwitch", False))))
-                self.setItem(row, 18, QTableWidgetItem(str(adjustment_allocation.get("type", "N/A"))))
+                self.setItem(row, 18, QTableWidgetItem(str(adjustment_allocation.get("type", ''))))
                 self.setItem(row, 19, QTableWidgetItem(str(adjustment_allocation.get("useHighestWageSwitch", False))))
 
             else:
@@ -357,10 +405,17 @@ class TableView(QTableWidget):
             6: 200,  # Job or Location
             9: 200,  # Pay Codes
             17: 150,  # Override If Primary Job Switch
-            19: 150  # Use Highest Wage Switch
+            19: 150,  # Use Highest Wage Switch
+            20: 200  # Bonus Pay Code
         }
 
         for col, width in min_widths.items():
             if self.columnWidth(col) < width:
                 self.setColumnWidth(col, width)
 
+    def on_cell_changed(self, row, column):
+        """Track modified cells"""
+        self.modified_cells.add((row, column))
+        item = self.item(row, column)
+        if item:
+            item.setBackground(QColor("#FFEB3B"))  # Highlight modified cells

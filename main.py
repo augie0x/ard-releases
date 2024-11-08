@@ -193,7 +193,6 @@ class MainWindow(QMainWindow):
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Enter search term...")
-        self.search_bar.setMaximumWidth(400)
         self.search_bar.textChanged.connect(self.search_table)
         search_layout.addWidget(self.search_bar)
 

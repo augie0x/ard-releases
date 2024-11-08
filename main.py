@@ -12,7 +12,6 @@ from PyQt5.QtCore import QSettings, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
     QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox, QSizePolicy, QSpacerItem
-from qt_material import apply_stylesheet
 
 from src.api_client import APIClient
 from src.auth_dialog import AuthDialog
@@ -23,6 +22,8 @@ from src.data_loader import DataLoader
 from src.table_view import TableView
 from src.utils import SettingsManager
 from src.adjustment_rules_utils import AdjustmentRuleUpdater
+
+from qt_material import apply_stylesheet
 
 def get_resource_path(relative_path):
     """Get the absolute path to a resource file"""

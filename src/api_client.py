@@ -42,9 +42,9 @@ class APIClient:
             self.username = self.settings_manager.username
             self.password = self.settings_manager.password
 
-            logger.debug(f"Loaded tokens - Access Token: {'Present' if self.access_token else 'None'}, "
+            """logger.debug(f"Loaded tokens - Access Token: {'Present' if self.access_token else 'None'}, "
                          f"Refresh Token: {'Present' if self.refresh_token else 'None'}, "
-                         f"Base Hostname: {self.base_hostname}")
+                         f"Base Hostname: {self.base_hostname}")"""
 
         except Exception as e:
             logger.error(f"Error loading tokens: {str(e)}")

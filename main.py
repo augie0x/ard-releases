@@ -9,9 +9,9 @@ import zipfile
 import requests
 from PyQt5 import Qt
 from PyQt5.QtCore import QSettings, QSize
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox, QSizePolicy, QSpacerItem
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox, QSizePolicy, QSpacerItem, QShortcut
 
 from src.api_client import APIClient
 from src.auth_dialog import AuthDialog
@@ -22,6 +22,7 @@ from src.data_loader import DataLoader
 from src.table_view import TableView
 from src.utils import SettingsManager
 from src.adjustment_rules_utils import AdjustmentRuleUpdater
+from src.help_dialog import HelpDialog
 
 from qt_material import apply_stylesheet
 
@@ -210,6 +211,7 @@ class MainWindow(QMainWindow):
         exit_action.setShortcut('Ctrl+W')
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
         # Connection menu
         connection_menu = menubar.addMenu('Connections')
 
@@ -229,6 +231,20 @@ class MainWindow(QMainWindow):
         disconnect_action = QAction('Disconnect', self)
         disconnect_action.triggered.connect(self.disconnect_tenant)
         connection_menu.addAction(disconnect_action)
+
+        # Help Menu
+        help_menu = menubar.addMenu("Help")
+
+        user_guide_action = QAction('User Guide', self)
+        user_guide_action.setShortcut('F1')
+        user_guide_action.triggered.connect(self.show_help)
+        help_menu.addAction(user_guide_action)
+
+    def show_help(self):
+        dialog = HelpDialog(self)
+        dialog.exec_()
+
+
 
     def show_connection_manager(self):
         """Show the connection manager dialog"""

@@ -10,12 +10,18 @@ class TableView(QTableWidget):
         super().__init__()
         self.modified_cells = set()
         self.setup_table()
-        self.modified_cells = set()
         self.clipboard = QApplication.clipboard()
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.context_menu)
         self.selectionModel().selectionChanged.connect(self.highlight_selection)
         self.undo_stack = []
+
+        self.original_values = {} # Dictionary to track original values
+
+        # Connect to itemChanged, itemDoubleClicked and currentCellChanged for tracking changes
+        self.itemDoubleClicked.connect(self.store_original_value)
+        self.currentCellChanged.connect(self.on_current_cell_changed)  #
+        self.itemChanged.connect(self.on_item_changed)
 
         # Setup keyboard shortcuts globally for the TableView
         QShortcut(QKeySequence.Cut, self, activated=self.do_cut)
@@ -142,7 +148,6 @@ class TableView(QTableWidget):
 
         self.clipboard.setText(text_to_copy.strip())
 
-
     def do_paste(self):
         """Paste clipboard content to selected cells"""
         data = self.clipboard.text().strip().split('\n')
@@ -184,41 +189,73 @@ class TableView(QTableWidget):
                         self.modified_cells.add((row, col))
                         item.setBackground(QColor("#FFFF99"))
 
+    def before_edit(self, item):
+        self.current_edit = (item.row(), item.column(), item.text())
+        #print(f"Before edit: {self.current_edit}")  # Debug print
+
+    def after_edit(self,item):
+        if self.signalsBlocked():
+            return
+        row = item.row()
+        col = item.column()
+        new_value = item.text()
+
+        if self.current_edit and self.current_edit[0] == row and self.current_edit[1] == col:
+            old_value = self.current_edit[2]
+        else:
+            old_value = new_value
+
+        if old_value != new_value:
+            #print(f"Recording change: ({row}, {col}) from '{old_value}' to '{new_value}'")  # Debug print
+            self.undo_stack.append((row, col, old_value, new_value))
+            self.modified_cells.add((row,col))
+            item.setBackground(QColor("#FFFF99"))
+
+        self.current_edit = None
+
     def do_undo(self):
-        """Undo the last change made"""
+        """Undo the last change"""
+        #print("\nAttempting undo operation...")
+        #print(f"Current undo stack size: {len(self.undo_stack)}")
+        #print(f"Modified cells count: {len(self.modified_cells)}")
+
         if not self.undo_stack:
+            print("No changes to undo")
             return
 
+        # Get the last change
         row, col, old_value, new_value = self.undo_stack.pop()
+        key = (row, col)
+        #print(f"Undoing change at ({row}, {col})")
+        #print(f"Reverting from '{new_value}' to '{old_value}'")
 
-        self.blockSignals(True)  # Prevent triggering `record_change` while undoing
+        self.blockSignals(True)
+
         item = self.item(row, col)
-        if not item:
-            item = QTableWidgetItem()
-            self.setItem(row, col, item)
+        if item:
+            item.setText(old_value)
 
-        item.setText(old_value)
+            # Check if this was the last change for this cell
+            has_more_changes = any((r == row and c == col) for r, c, _, _ in self.undo_stack)
+
+            if not has_more_changes:
+                # Restore original background color
+                adjustment_type = self.item(row, 3).text()
+                color = (
+                    QColor("#e0f7fa") if adjustment_type == "Bonus"
+                    else QColor("#ffe0b2") if adjustment_type == "Wage"
+                    else QColor("#f0f0f0")
+                )
+                item.setBackground(color)
+                self.modified_cells.discard(key)  # Use the key tuple consistently
+                #print(f"Restored original color for cell ({row}, {col})")
+            else:
+                item.setBackground(QColor("#FFFF99"))
+                #print(f"Kept highlight color for cell ({row}, {col}) - has more changes")
+
         self.blockSignals(False)
-
-        self.modified_cells.add((row, col))
-        item.setBackground(QColor("#FFFF99"))
-
-    def record_change(self,row,col):
-        current_value = self.item(row,col).text()
-
-        if self.undo_stack and self.undo_stack[-1][0:2] == (row,col):
-            _,_,old_value,_ = self.undo_stack.pop()
-            self.undo_stack.append((row,col,old_value,current_value))
-
-        else:
-            old_value = current_value
-            if self.item(row,col).text() != "":
-                old_value = self.item(row,col).text()
-
-            self.undo_stack.append((row, col, old_value, current_value))
-
-            self.modified_cells.add((row,col))
-            self.item(row,col).setBackground(QColor("#FFFF99"))
+        #print("Undo operation completed")
+        #print(f"Modified cells remaining: {len(self.modified_cells)}")
 
     def highlight_selection(self, selected, deselected):
         """Highlight cells when selection changes"""
@@ -410,9 +447,59 @@ class TableView(QTableWidget):
             if self.columnWidth(col) < width:
                 self.setColumnWidth(col, width)
 
-    def on_cell_changed(self, row, column):
-        """Track modified cells"""
-        self.modified_cells.add((row, column))
-        item = self.item(row, column)
-        if item:
-            item.setBackground(QColor("#FFEB3B"))  # Highlight modified cells
+    def on_item_double_clicked(self, item):
+        """Store the original value when editing starts"""
+        self.original_value = item.text()
+
+    def store_original_value(self, item):
+        """Store the original value when editing starts"""
+        key = (item.row(), item.column())
+        self.original_values[key] = item.text()
+        #print(f"Stored original value: {key} = {item.text()}")
+
+    def on_item_changed(self, item):
+        """Handle cell value changes"""
+        if self.signalsBlocked():
+            return
+
+        row = item.row()
+        col = item.column()
+        key = (row, col)
+        current_value = item.text()
+
+        # Get the original value if we have it
+        original_value = self.original_values.get(key)
+
+        #print(f"Change detected - Row: {row}, Col: {col}")
+        #print(f"Original value: {original_value}")
+        #print(f"Current value: {current_value}")
+
+        if original_value is not None and original_value != current_value:
+            change_entry = (row, col, original_value, current_value)
+            self.undo_stack.append(change_entry)
+            self.modified_cells.add(key)
+            item.setBackground(QColor("#FFFF99"))
+            #print(f"Added to undo stack: {change_entry}")
+            #print(f"Undo stack size now: {len(self.undo_stack)}")
+
+            # Clear the stored original value
+            del self.original_values[key]
+
+    def on_current_cell_changed(self, current_row, current_col, previous_row, previous_col):
+        """Store original value when cell selection changes"""
+        if current_row >= 0 and current_col >= 0:  # Valid cell selected
+            item = self.item(current_row, current_col)
+            if item:
+                key = (current_row, current_col)
+                # Only store if we don't already have an original value for this cell
+                if key not in self.original_values:
+                    self.original_values[key] = item.text()
+                    #print(f"Stored original value (from selection): {key} = {item.text()}")
+
+    """def print_debug_info(self):
+        print("\nDebug Information:")
+        print(f"Undo stack size: {len(self.undo_stack)}")
+        print(f"Modified cells: {len(self.modified_cells)}")
+        print("Last 5 undo stack entries:")
+        for entry in self.undo_stack[-5:]:
+            print(entry)"""

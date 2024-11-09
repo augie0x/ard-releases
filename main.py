@@ -23,16 +23,9 @@ from src.table_view import TableView
 from src.utils import SettingsManager
 from src.adjustment_rules_utils import AdjustmentRuleUpdater
 from src.help_dialog import HelpDialog
-
+from src.about_dialog import AboutDialog
+from src.utils import get_resource_path
 from qt_material import apply_stylesheet
-
-def get_resource_path(relative_path):
-    """Get the absolute path to a resource file"""
-    if hasattr(sys, '_MEIPASS'):
-        # Running as compiled executable
-        return os.path.join(sys._MEIPASS, relative_path)
-    # Running as script
-    return os.path.join(os.path.abspath("."), relative_path)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -240,8 +233,18 @@ class MainWindow(QMainWindow):
         user_guide_action.triggered.connect(self.show_help)
         help_menu.addAction(user_guide_action)
 
+        # About Menu
+        about_menu = menubar.addMenu("About")
+        about_action = QAction('About Adjustment Rule Demystifier',self)
+        about_action.triggered.connect(self.show_about)
+        about_menu.addAction(about_action)
+
     def show_help(self):
         dialog = HelpDialog(self)
+        dialog.exec_()
+
+    def show_about(self):
+        dialog = AboutDialog(self)
         dialog.exec_()
 
 

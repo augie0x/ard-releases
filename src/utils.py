@@ -1,5 +1,7 @@
 # utils.py
 import logging
+import os
+import sys
 
 from PyQt5.QtCore import QSettings
 
@@ -68,3 +70,13 @@ class SettingsManager:
         except Exception as e:
             logger.error(f"Erorr clearing connections: {str(e)}")
             return False
+
+def get_resource_path(relative_path):
+    """Get the absolute path to a resource file"""
+    if hasattr(sys, '_MEIPASS'):
+        # Running as compiled executable
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Running as script
+    return os.path.join(os.path.abspath("."), relative_path)
+
+

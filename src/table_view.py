@@ -221,7 +221,6 @@ class TableView(QTableWidget):
         #print(f"Modified cells count: {len(self.modified_cells)}")
 
         if not self.undo_stack:
-            print("No changes to undo")
             return
 
         # Get the last change
@@ -232,31 +231,31 @@ class TableView(QTableWidget):
 
         self.blockSignals(True)
 
-        item = self.item(row, col)
-        if item:
-            item.setText(old_value)
+        try:
+            item = self.item(row, col)
+            if item:
+                current_value = item.text()
+                item.setText(old_value)
 
-            # Check if this was the last change for this cell
-            has_more_changes = any((r == row and c == col) for r, c, _, _ in self.undo_stack)
+                # Check if this was the last change for this cell
+                has_more_changes = any((r == row and c == col) for r, c, _, _ in self.undo_stack)
 
-            if not has_more_changes:
-                # Restore original background color
-                adjustment_type = self.item(row, 3).text()
-                color = (
-                    QColor("#e0f7fa") if adjustment_type == "Bonus"
-                    else QColor("#ffe0b2") if adjustment_type == "Wage"
-                    else QColor("#f0f0f0")
-                )
-                item.setBackground(color)
-                self.modified_cells.discard(key)  # Use the key tuple consistently
-                #print(f"Restored original color for cell ({row}, {col})")
-            else:
-                item.setBackground(QColor("#FFFF99"))
-                #print(f"Kept highlight color for cell ({row}, {col}) - has more changes")
-
-        self.blockSignals(False)
-        #print("Undo operation completed")
-        #print(f"Modified cells remaining: {len(self.modified_cells)}")
+                if not has_more_changes:
+                    # Restore original background color
+                    adjustment_type = self.item(row, 3).text()
+                    color = (
+                        QColor("#e0f7fa") if adjustment_type == "Bonus"
+                        else QColor("#ffe0b2") if adjustment_type == "Wage"
+                        else QColor("#f0f0f0")
+                    )
+                    item.setBackground(color)
+                    self.modified_cells.discard(key)  # Use the key tuple consistently
+                    #print(f"Restored original color for cell ({row}, {col})")
+                else:
+                    item.setBackground(QColor("#FFFF99"))
+                    #print(f"Kept highlight color for cell ({row}, {col}) - has more changes")
+        finally:
+            self.blockSignals(False)
 
     def highlight_selection(self, selected, deselected):
         """Highlight cells when selection changes"""
@@ -484,7 +483,7 @@ class TableView(QTableWidget):
             #print(f"Undo stack size now: {len(self.undo_stack)}")
 
             # Clear the stored original value
-            del self.original_values[key]
+            self.original_values.pop(key, None)
 
     def on_current_cell_changed(self, current_row, current_col, previous_row, previous_col):
         """Store original value when cell selection changes"""

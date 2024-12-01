@@ -30,7 +30,7 @@ class AboutDialog(QDialog):
 
         description = QLabel (
             "A tool for demystifying and analysing adjustment rule and its triggers."
-            "This application allows you to view, modify and update adjustment rules"
+            "This application allows you to view and update existing adjustment rules"
         )
         description.setWordWrap(True)
         description.setAlignment(Qt.AlignCenter)

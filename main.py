@@ -5,14 +5,12 @@ import os
 import sys
 import zipfile
 from datetime import datetime
-from pprint import pprint
 
 import requests
-from PyQt5 import Qt
-from PyQt5.QtCore import QSettings, QSize, Qt
+from PyQt5.QtCore import QSettings, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox
 from qt_material import apply_stylesheet
 
 from src.about_dialog import AboutDialog
@@ -27,6 +25,7 @@ from src.help_dialog import HelpDialog
 from src.table_view import TableView
 from src.utils import SettingsManager
 from src.utils import get_resource_path
+from src.recent_files_manager import RecentFilesManager
 
 
 def resource_path(relative_path):
@@ -53,7 +52,7 @@ class MainWindow(QMainWindow):
             os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
 
         # Setup main window
-        self.setWindowTitle("Adjustment Rules Demystifier")
+        self.setWindowTitle("Adjustment Rules Updater")
         self.setGeometry(100, 100, 1600, 800)  # Adjust as needed
         self.statusBar = self.statusBar()
 
@@ -193,6 +192,8 @@ class MainWindow(QMainWindow):
         # Add search layout to top layout
         top_layout.addLayout(search_layout)
 
+        self.recent_files_manager = RecentFilesManager(max_files=10)
+
         # Add menu bar
         self.create_menu_bar()
 
@@ -204,6 +205,7 @@ class MainWindow(QMainWindow):
         self.fetch_api_button.setEnabled(False)
         self.update_rules_button.setEnabled(False)
 
+
     def create_menu_bar(self):
         """Create the menu bar with connection management options"""
         menubar = self.menuBar()
@@ -214,6 +216,12 @@ class MainWindow(QMainWindow):
         open_action.setShortcut('Ctrl+O')
         open_action.triggered.connect(self.load_json_file)
         file_menu.addAction(open_action)
+
+        self.recent_menu = file_menu.addMenu("Recent Files")
+        self.update_recent_files_menu()
+
+        # Add separator
+        file_menu.addSeparator()
 
         exit_action = QAction("&Exit", self)
         exit_action.setShortcut('Ctrl+W')
@@ -446,8 +454,10 @@ class MainWindow(QMainWindow):
                 if triggers:
                     self.table_view.display_triggers(triggers)
                     self.populate_rule_filter_combo(triggers)
-                    QMessageBox.information(self, "Success",
-                                            f"JSON file loaded and parsed successfully.")
+                    self.recent_files_manager.add_file(file_name)
+                    self.update_recent_files_menu()
+                    '''QMessageBox.information(self, "Success",
+                                            f"JSON file loaded and parsed successfully.")'''
                 else:
                     QMessageBox.warning(self, "No Triggers Found",
                                         "No adjustment triggers were found in the JSON file. Please verify the file format.")
@@ -760,7 +770,7 @@ class MainWindow(QMainWindow):
         else:
             # Filter the rows to show only those that match the selected rule name
             for row in range(self.table_view.rowCount()):
-                item = self.table_view.item(row, 1)  # Assuming the rule name is in column 0
+                item = self.table_view.item(row, 1)
                 if item and item.text() == selected_rule:
                     self.table_view.setRowHidden(row, False)  # Show row if it matches
                 else:
@@ -768,6 +778,73 @@ class MainWindow(QMainWindow):
 
         # Refresh the UI to ensure changes are displayed correctly
         QApplication.processEvents()
+
+    def update_recent_files_menu(self):
+        self.recent_menu.clear()
+
+        recent_files = self.recent_files_manager.get_files()
+        if not recent_files:
+            no_recent = QAction("No Recent Files",self)
+            no_recent.setEnabled(False)
+            self.recent_menu.addAction(no_recent)
+            return
+
+        for file_entry in recent_files:
+            action = QAction(file_entry['path'],self)
+            size_mb = file_entry['size'] / (1024*1024)
+            tooltip = (f"Path: {file_entry['path']}\n"
+                        f"Size: {size_mb: .2f} MB\n"
+                        f"Last accessed: {file_entry['last_accessed']}")
+            action.setToolTip(tooltip)
+            action.triggered.connect(
+                lambda checked, path=file_entry['path']: self.load_recent_files(path)
+            )
+            self.recent_menu.addAction(action)
+
+            self.recent_menu.addSeparator()
+            clear_action = QAction("Clear Recent Files",self)
+            clear_action.triggered.connect(self.clear_recent_files)
+            self.recent_menu.addAction(clear_action)
+
+    def load_recent_files(self, filepath):
+        if not os.path.exists(filepath):
+            QMessageBox.warning(self, "File Not Found", f"The file {filepath} no longer exists.")
+            self.update_recent_files_menu()
+            self.statusBar.showMessage("Cannot load recent file, file not found")
+            return
+
+        try:
+            data = DataLoader.load_json(filepath)
+            if data:
+                triggers = DataLoader.extract_triggers(data)
+                if triggers:
+                    self.table_view.display_triggers(triggers)
+                    self.populate_rule_filter_combo(triggers)
+                    self.recent_files_manager.add_file(filepath)
+                    self.update_recent_files_menu()
+                    self.statusBar.showMessage(f"File loaded: {filepath}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error loading file {filepath}:\n{str(e)}")
+
+    def clear_recent_files(self):
+        """
+            Clear the recent files list, but only if there are files to clear.
+            First checks if the recent files list contains any entries before
+            showing
+        """
+        recent_files = self.recent_files_manager.get_files()
+
+        if not recent_files:
+            QMessageBox.information(self, "No Recent Files", "The recent files list is already empty.",QMessageBox.Ok)
+            return
+
+        reply = QMessageBox.question(self,"Clear Recent Files", "Are you sure you want to clear the recent files list?",QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            self.recent_files_manager.clear_recent_files()
+            self.update_recent_files_menu()
+            self.statusBar.showMessage("Recent files cleared")
+
 
 
 def main():

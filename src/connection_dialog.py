@@ -52,8 +52,8 @@ class ConnectionDialog(QDialog):
 
         # Input fields
         self.hostname_input = QLineEdit()
-        self.hostname_input.setPlaceholderText("https://tenant.npr.mykronos.com")
-        self.hostname_input.setToolTip("Enter the base hostname, e.g., https://teamglobalexp-uat.npr.mykronos.com")
+        self.hostname_input.setPlaceholderText("https://hostname.npr.mykronos.com")
+        self.hostname_input.setToolTip("Enter the base hostname, e.g., https://hostname.npr.mykronos.com")
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Username")
         self.client_id_input = QLineEdit()

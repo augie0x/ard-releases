@@ -109,37 +109,36 @@ class HelpDialog(QDialog):
         <h2>Adjustment Rules Demystifier - User Guide</h2>
 
         <h3>Getting Started</h3>
-        <p>This tool helps demystify and analyse adjustment rules triggers. Here's how to use the main features:</p>
+        <p>This tool helps demystify and analyse adjustment rules and its triggers. Here's how to use the main features:</p>
+        <p><b>Note:</b> You must be authenticated before attempting to retrieve or update rules.</p>
 
         <h4>File Operations</h4>
         <ul>
-            <li><b>Load JSON:</b>Click the folder icon or use Ctrl+O to load adjustment rules from a JSON file</li>
-            <li><b>Export to CSV:</b> Click the CSV icon to export the current table to a CSV file</li>
-            <li><b>Export to JSON:</b> Click the JSON icon to export modifications as a JSON file</li>
+            <li><b>Load JSON:</b>Click the folder icon or use Ctrl+O to load adjustment rules from a JSON file.</li>
+            <li><b>Export to CSV:</b> Click the CSV icon to export the current table to a CSV file.</li>
+            <li><b>Export to JSON:</b> Click the JSON icon to export modifications as a JSON file.</li>
         </ul>
 
         <h4>Connection Management</h4>
         <ul>
-            <li><b>Manage Connections:</b> Click the gear icon or use Ctrl+M to manage tenant connections</li>
-            <li><b>Connect to Tenant:</b> Click the connect icon or use Ctrl+T to connect to a saved tenant</li>
-            <li><b>Retrieve Rules:</b> Once connected, use the download icon to retrieve adjustment rules</li>
+            <li><b>Manage Connections:</b> Click the gear icon or use Ctrl+M to manage tenant connections.</li>
+            <li><b>Connect to Tenant:</b> Click the connect icon or use Ctrl+T to connect to a saved tenant.</li>
+            <li><b>Retrieve Rules:</b> Once connected, use the download icon to retrieve adjustment rules.</li>
         </ul>
 
         <h4>Table Operations</h4>
         <ul>
-            <li><b>Search:</b> Use the search bar to filter rules in real-time</li>
-            <li><b>Filter:</b> Use the filter drop down box to only filter the rules and only see specific rules in real-time</li>
-            <li><b>Edit Cells:</b> Double-click any cell to modify its content or start typing while a cell is selected</li>
-            <li><b>Copy/Paste:</b> Use Ctrl+C and Ctrl+V or right-click menu for clipboard operations</li>
-            <li><b>Sort:</b> Click column headers to sort the table</li>
+            <li><b>Search:</b> Use the search bar to filter rules in real-time.</li>
+            <li><b>Filter:</b> Use the filter drop down box to only filter the rules and only see specific rules in real-time.</li>
+            <li><b>Edit Cells:</b> Double-click any cell to modify its content or start typing while a cell is selected.</li>
+            <li><b>Copy/Paste:</b> Use Ctrl+C and Ctrl+V or right-click menu for clipboard operations.</li>
+            <li><b>Sort:</b> Click column headers to sort the table.</li>
         </ul>
 
         <h4>Updates and Modifications</h4>
         <ul>
-            <li>Use the JSON button to export a file with individual folders of each rule</li>
-            <li>Use the update icon to save changes back to the tenant</li>
-            <li>Use Ctrl+Z or the right-click menu to undo changes</li>
+            <li><b>Manual Upload:</b>Use the JSON button to export a file with individual folders of each rule.</li>
+            <li><b>Update via API:</b>Use the update icon to send changes to the tenant via API. When updating, it preserves all unmodified triggers and only updates the modified triggers</li>
         </ul>
 
-        <p><b>Note:</b> Always ensure you have authenticated before attempting to retrieve or update rules.</p>
     """

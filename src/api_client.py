@@ -330,8 +330,8 @@ class APIClient:
 
             if response.status_code == 200:
                 data = response.json()
-                print("\nAPI Response structure:")
-                print(json.dumps(data[0] if isinstance(data, list) and data else {}, indent=2))
+                #print("\nAPI Response structure:")
+                #print(json.dumps(data[0] if isinstance(data, list) and data else {}, indent=2))
                 if isinstance(data, list):
                     if data:
                         first_rule = data[0]

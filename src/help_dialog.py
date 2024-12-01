@@ -1,10 +1,11 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser, QPushButton, QDialogButtonBox)
 from PyQt5.QtCore import Qt
+from src.version import __app_name__
 
 class HelpDialog(QDialog):
     def __init__(self, parent = None):
         super().__init__(parent)
-        self.setWindowTitle("Adjustment Rules Demystifier - User Guide")
+        self.setWindowTitle(f"{__app_name__} - User Guide")
         self.setModal(True)
         self.resize(700,700)
 
@@ -106,7 +107,7 @@ class HelpDialog(QDialog):
             color: #00796B;  /* Teal for shortcuts */
         }
     </style>
-        <h2>Adjustment Rules Demystifier - User Guide</h2>
+        <h2>Adjustment Rules Updater - User Guide</h2>
 
         <h3>Getting Started</h3>
         <p>This tool helps demystify and analyse adjustment rules and its triggers. Here's how to use the main features:</p>

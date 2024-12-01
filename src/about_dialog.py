@@ -6,6 +6,7 @@ from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 
 from src.utils import get_resource_path
+from src.version import __version__, __app_name__, __description__, __author_email__, __author__
 
 class AboutDialog(QDialog):
 
@@ -20,7 +21,7 @@ class AboutDialog(QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(20,20,20,20)
 
-        app_name = QLabel("Adjustment Rule Demystifier v1.1.0")
+        app_name = QLabel(f"{__app_name__} v{__version__}")
         font = QFont()
         font.setBold(True)
         font.setPointSize(14)
@@ -29,16 +30,15 @@ class AboutDialog(QDialog):
         layout.addWidget(app_name)
 
         description = QLabel (
-            "A tool for demystifying and analysing adjustment rule and its triggers."
-            "This application allows you to view and update existing adjustment rules"
+            f"{__description__}"
         )
         description.setWordWrap(True)
         description.setAlignment(Qt.AlignCenter)
         layout.addWidget(description)
 
         built_by = QLabel(
-            "Built with great dificulty by Omar K."
-            " Send feedback to omar.khan@ukg.com"
+            f"Built with great dificulty by {__author__}."
+            f" Send feedback to {__author_email__}"
         )
         built_by.setWordWrap(True)
         built_by.setAlignment(Qt.AlignCenter)

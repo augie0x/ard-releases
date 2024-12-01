@@ -1,10 +1,11 @@
 # build_complete.py
 import os
 import shutil
-import subprocess
-import PyInstaller.__main__
 import sys
 
+import PyInstaller.__main__
+
+from src.version import __app_name__, __version__
 
 def ensure_resources():
     """Ensure all required resources exist"""
@@ -31,7 +32,7 @@ def clean_build_directories():
 def copy_dependencies():
     """Copy necessary DLL files to dist directory"""
     qt_bin_path = os.path.join(sys.prefix, 'Lib', 'site-packages', 'PyQt5', 'Qt5', 'bin')
-    dist_path = os.path.join('dist', 'AdjustmentRuleDemystifier')
+    dist_path = os.path.join('dist', 'AdjustmentRuleUpdater')
 
     if not os.path.exists(dist_path):
         os.makedirs(dist_path)
@@ -64,7 +65,8 @@ def build_executable():
     # Define the command list first
     command = [
         'main.py',
-        '--name=AdjustmentRuleDemystifier',
+        f'--name={__app_name__.replace(" ", "")}',
+        f'--version={__version__}',
         '--onefile',
         '--windowed',
         '--add-data=resources/images;resources/images',

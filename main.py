@@ -7,7 +7,7 @@ import zipfile
 from datetime import datetime
 
 import requests
-from PyQt5.QtCore import QSettings, QSize, QThread, pyqtSignal, QTimer, Qt
+from PyQt5.QtCore import QSettings, QSize, QThread, pyqtSignal, QTimer, Qt, QSharedMemory
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
     QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox, QProgressDialog
@@ -22,12 +22,12 @@ from src.connection_manager import ConnectionManager
 from src.connection_selection import ConnectionSelectionDialog
 from src.data_loader import DataLoader
 from src.help_dialog import HelpDialog
+from src.recent_files_manager import RecentFilesManager
 from src.table_view import TableView
 from src.utils import SettingsManager
 from src.utils import get_resource_path
-from src.recent_files_manager import RecentFilesManager
 from src.version_manager import VersionManager
-
+from src.version import __app_name__, __version__
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -72,8 +72,13 @@ class MainWindow(QMainWindow):
             os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
             os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
 
+        self.appKey = 'AdjustmentRuleUpdater_1_1_Mutex'
+        self.memory = QSharedMemory(self.appKey)
+        if not self.memory.create(1):
+            sys.exit(0)
+
         # Setup main window
-        self.setWindowTitle("Adjustment Rules Updater")
+        self.setWindowTitle(f"{__app_name__} v{__version__}")
         self.setGeometry(100, 100, 1600, 800)  # Adjust as needed
         self.statusBar = self.statusBar()
 

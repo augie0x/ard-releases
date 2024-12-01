@@ -1,31 +1,47 @@
 # main.py
 import csv
 import json
-import sys
 import os
-from datetime import datetime
+import sys
 import zipfile
+from datetime import datetime
+from pprint import pprint
 
 import requests
 from PyQt5 import Qt
-from PyQt5.QtCore import QSettings, QSize
-from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtCore import QSettings, QSize, Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox, QSizePolicy, QSpacerItem, QShortcut
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QProgressDialog, QComboBox
+from qt_material import apply_stylesheet
 
+from src.about_dialog import AboutDialog
+from src.adjustment_rules_utils import AdjustmentRuleUpdater
 from src.api_client import APIClient
 from src.auth_dialog import AuthDialog
 from src.connection_dialog import ConnectionDialog
 from src.connection_manager import ConnectionManager
 from src.connection_selection import ConnectionSelectionDialog
 from src.data_loader import DataLoader
+from src.help_dialog import HelpDialog
 from src.table_view import TableView
 from src.utils import SettingsManager
-from src.adjustment_rules_utils import AdjustmentRuleUpdater
-from src.help_dialog import HelpDialog
-from src.about_dialog import AboutDialog
 from src.utils import get_resource_path
-from qt_material import apply_stylesheet
+
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+icon_path = resource_path("resources/images/icon.ico")
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -113,7 +129,7 @@ class MainWindow(QMainWindow):
         self.fetch_api_button = QPushButton()
         self.fetch_api_button.setIcon(QIcon(get_resource_path("resources/images/get.png")))
         self.fetch_api_button.setIconSize(QSize(24, 24))
-        self.fetch_api_button.setToolTip("Reteieve Adjustment Rules")
+        self.fetch_api_button.setToolTip("Retrieve Adjustment Rules")
         self.fetch_api_button.clicked.connect(self.get_adjustment_rules_api)
         self.fetch_api_button.setEnabled(False)
         self.fetch_api_button.setFixedSize(40, 40)
@@ -145,7 +161,6 @@ class MainWindow(QMainWindow):
         self.export_json_button.setFixedSize(40, 40)
         self.export_json_button.setFlat(True)
         left_buttons_layout.addWidget(self.export_json_button)
-
 
         # Add left buttons group to top layout
         top_layout.addLayout(left_buttons_layout)
@@ -235,7 +250,7 @@ class MainWindow(QMainWindow):
 
         # About Menu
         about_menu = menubar.addMenu("About")
-        about_action = QAction('About Adjustment Rule Demystifier',self)
+        about_action = QAction('About Adjustment Rule Demystifier', self)
         about_action.triggered.connect(self.show_about)
         about_menu.addAction(about_action)
 
@@ -246,8 +261,6 @@ class MainWindow(QMainWindow):
     def show_about(self):
         dialog = AboutDialog(self)
         dialog.exec_()
-
-
 
     def show_connection_manager(self):
         """Show the connection manager dialog"""
@@ -284,7 +297,8 @@ class MainWindow(QMainWindow):
 
     def update_connection_status(self, connected=False, tenant_name=None):
         """Update UI elements based on connection status"""
-        #print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
+        # print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
+        print(f"Updating connection status: connected={connected}")
         self.fetch_api_button.setEnabled(connected)
         self.update_rules_button.setEnabled(connected)
 
@@ -378,11 +392,15 @@ class MainWindow(QMainWindow):
                 if triggers:
                     self.table_view.display_triggers(triggers)
                     self.populate_rule_filter_combo(triggers)
-                    QMessageBox.information(
+                    self.rule_filter_combo.blockSignals(True)
+                    self.rule_filter_combo.setCurrentText("All Rules")
+                    self.rule_filter_combo.blockSignals(False)
+                    self.filter_by_rule()
+                    '''QMessageBox.information(
                         self,
                         "Success",
                         f"Adjustment Rules retrieved successfully."
-                    )
+                    )'''
                 else:
                     QMessageBox.warning(
                         self,
@@ -390,7 +408,6 @@ class MainWindow(QMainWindow):
                         "No adjustment triggers were found in the API response."
                     )
             else:
-                # Handle case where response is not a list
                 QMessageBox.warning(
                     self,
                     "Invalid Response",
@@ -408,7 +425,6 @@ class MainWindow(QMainWindow):
             return None
 
         finally:
-            # Ensure the UI is responsive after the operation
             QApplication.processEvents()
 
     def load_json_file(self):
@@ -509,18 +525,6 @@ class MainWindow(QMainWindow):
             import traceback
             traceback.print_exc()
 
-    def resource_path(relative_path):
-        """Get absolute path to resource, works for dev and for PyInstaller"""
-        try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(".")
-
-        return os.path.join(base_path, relative_path)
-
-    icon_path = resource_path("resources/images/icon.ico")
-
     # Update Adjustment Rules functions
     def get_table_data(self):
         """Get all data from the table"""
@@ -545,94 +549,138 @@ class MainWindow(QMainWindow):
             data.append(row_data)
         return data
 
+    def get_modified_rule_data(self, rule_id):
+        """
+        Gets all data for a specific rule that has been modified.
+
+        Args:
+            rule_id (str): The ID of the rule to get data for
+
+        Returns:
+            dict: Complete rule data including all modifications
+        """
+        rule_data = {}
+
+        # Find all rows that belong to this rule
+        for row in range(self.rowCount()):
+            current_rule_id = self.item(row, 0).text()
+            if current_rule_id == rule_id:
+                # Check if this row has any modifications
+                row_has_modifications = any((row, col) in self.modified_cells
+                                            for col in range(self.columnCount()))
+
+                if row_has_modifications:
+                    # Get all data for this row
+                    row_data = {}
+                    for column in range(self.columnCount()):
+                        header = self.horizontalHeaderItem(column).text()
+                        item = self.item(row, column)
+                        row_data[header] = item.text() if item else ""
+
+                    # If we haven't stored data for this rule yet, store it
+                    if not rule_data:
+                        rule_data = row_data
+
+        return rule_data
+
+    def _validate_update_payload(self, payload):
+        """
+        Validates the update payload before sending to API
+        """
+        if not isinstance(payload, dict) or 'update' not in payload:
+            return False
+
+        updates = payload.get('update', [])
+        if not isinstance(updates, list) or not updates:
+            return False
+
+        for update in updates:
+            if not isinstance(update, dict):
+                return False
+            if 'adjustmentRuleVersion' not in update.get('ruleVersions', {}):
+                return False
+
+        return True
+
     def update_adjustment_rules(self):
-        """Updates adjustment rules via API"""
         if not self.api_client.access_token:
             QMessageBox.warning(self, "Authentication Required", "Please authenticate first.")
             return
 
         try:
-            # Get modified data from table
-            modified_data = []
-            for row, col in self.table_view.modified_cells:
-                rule_data = {}
-                for column in range(self.table_view.columnCount()):
-                    header = self.table_view.horizontalHeaderItem(column).text()
-                    item = self.table_view.item(row, column)
-                    rule_data[header] = item.text() if item else ""
-                modified_data.append(rule_data)
+            print("Getting modified rows")
+            # Get only the modified rows
+            modified_data = self.table_view.get_modified_row_data()
 
             if not modified_data:
+                print("No modifications detected")
                 QMessageBox.information(self, "No Changes", "No modifications detected.")
                 return
 
-            # Get rules grouped by ID
-            rules_by_id = AdjustmentRuleUpdater.create_update_payload(modified_data, separate_rules=True)
+            # Processing each modified rule separately
+            for rule_data in modified_data:
+                rule_id = rule_data.get('Rule ID')
+                print(f"Processing rule ID: {rule_id}")
+                if not rule_id:
+                    print("No rule ID found, skipping")
+                    continue
 
-            # Setup progress dialog
-            progress = QProgressDialog("Updating rules...", "Cancel", 0, len(rules_by_id), self)
-            progress.setWindowModality(Qt.Qt.WindowModal)
+                # Get original trigger data from the retreive API
+                print(f"Getting original trigger data for rule {rule_id}")
+                original_trigger = self.api_client.get_adjustment_rules_by_ids(rule_id)
+                if not original_trigger:
+                    print(f"Could not retrieve original data for rule {rule_id}")
+                    raise Exception(f"Could not retrieve original data for rule {rule_id}")
 
-            successful_updates = 0
-            failed_updates = []
+                payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
-            # Update each rule individually
-            for i, (rule_id, rule_data) in enumerate(rules_by_id.items()):
-                if progress.wasCanceled():
-                    break
+                if not original_trigger:
+                    print(f"\nFailed to find rule {rule_id} in stored data")
+                    raise Exception(f"Could not find original data for rule {rule_id}")
 
-                try:
-                    # Create URL with specific rule ID
-                    url = f"{self.api_client.base_hostname}/api/v1/timekeeping/setup/adjustment_rules/{rule_id}"
-                    headers = {
-                        'Authorization': f"{self.api_client.token_type} {self.api_client.access_token}",
-                        'Content-Type': 'application/json'
-                    }
+                # Create payload using both modified and original data
+                print("Creating update payload")
+                payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
-                    # Send update request for this rule
-                    response = requests.put(url, json=rule_data, headers=headers)
+                print(f"\nSending update for rule {rule_id}:")
+                print(json.dumps(payload, indent=2))
 
-                    if response.status_code == 200:
-                        successful_updates += 1
-                    else:
-                        error_msg = f"Failed to update rule {rule_id}: {response.text}"
-                        failed_updates.append((rule_id, error_msg))
-                        print(f"Error updating rule {rule_id}: {response.text}")  # For debugging
+                # Send update request
+                base_hostname = self.api_client.base_hostname.rstrip('/')
+                url = f"{self.api_client.base_hostname}/api/v1/timekeeping/setup/adjustment_rules/{rule_id}"
+                # Debug print the URL and payload
+                print(f"\nAttempting to update rule {rule_id}")
+                print(f"URL: {url}")
+                print(f"Payload: {json.dumps(payload, indent=2)}")
 
-                except Exception as e:
-                    error_msg = f"Error processing rule {rule_id}: {str(e)}"
-                    failed_updates.append((rule_id, error_msg))
-                    print(error_msg)  # For debugging
+                # Set headers
+                headers = {
+                    'Authorization': f"{self.api_client.token_type} {self.api_client.access_token}",
+                    'Content-Type': 'application/json'
+                }
 
-                finally:
-                    progress.setValue(i + 1)
+                # Make the request using PUT method
+                print("Making PUT request")
+                response = requests.put(url, json=payload, headers=headers)
+                print(f"Response status code: {response.status_code}")
 
-            progress.close()
+                if response.status_code != 200:
+                    print(f"Error response: {response.text}")
+                    error_msg = f"Failed to update rule {rule_id}"
+                    try:
+                        error_details = response.json()
+                        print(f"\nError response: {json.dumps(error_details, indent=2)}")
+                        if 'message' in error_details:
+                            error_msg += f": {error_details['message']}"
+                    except:
+                        error_msg += f": {response.text}"
+                    raise Exception(error_msg)
 
-            # Show results
-            if successful_updates > 0:
-                success_msg = f"Successfully updated {successful_updates} rule(s)."
-                if failed_updates:
-                    success_msg += f"\n\nFailed to update {len(failed_updates)} rule(s)."
-                    for rule_id, error in failed_updates:
-                        success_msg += f"\n\nRule {rule_id}: {error}"
-                    QMessageBox.warning(self, "Update Results", success_msg)
-                else:
-                    QMessageBox.information(self, "Success", success_msg)
-
-                # Refresh display only if there were successful updates
-                self.get_adjustment_rules_api()
-
-            elif failed_updates:
-                error_msg = "Failed to update any rules:\n\n"
-                for rule_id, error in failed_updates:
-                    error_msg += f"Rule {rule_id}: {error}\n"
-                QMessageBox.critical(self, "Update Failed", error_msg)
+            QMessageBox.information(self, "Success", "Rules updated successfully!")
+            self.get_adjustment_rules_api()
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update rules:\n{str(e)}")
-            import traceback
-            traceback.print_exc()
 
     def export_to_json(self):
         """Export adjustment rules to JSON file"""
@@ -645,7 +693,7 @@ class MainWindow(QMainWindow):
                 return
 
             # Create the export payload - get separate rules for file export
-            rules_by_id = AdjustmentRuleUpdater.create_update_payload(data, separate_rules=True)
+            rules_by_id = AdjustmentRuleUpdater.create_export_payload(data, separate_rules=True)
 
             if not rules_by_id:
                 QMessageBox.warning(self, "No Rules", "No valid rules found to export.")
@@ -701,8 +749,6 @@ class MainWindow(QMainWindow):
             if rule_name:
                 self.rule_filter_combo.addItem(rule_name)
 
-    from PyQt5.QtWidgets import QApplication
-
     def filter_by_rule(self):
         """Filter the table based on the selected rule name from the combo box."""
         selected_rule = self.rule_filter_combo.currentText()
@@ -733,7 +779,7 @@ def main():
     main_window = MainWindow()
     main_window.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@ import json
 
 from PyQt5.QtCore import QSettings
 
-
 class ConnectionManager:
     def __init__(self):
         self.settings = QSettings("Adjustment Rules Demystifier", "UKG")

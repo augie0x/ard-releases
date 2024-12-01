@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QComboBox, QPushButton, QDialogButtonBox, QLabel
 
 from .connection_manager import ConnectionManager
+from .connection_dialog import ConnectionDialog
 
 
 class ConnectionSelectionDialog(QDialog):
@@ -39,7 +40,6 @@ class ConnectionSelectionDialog(QDialog):
         return self.connection_combo.currentText()
 
     def show_connection_manager(self):
-        from connection_dialog import ConnectionDialog
         dialog = ConnectionDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             self.connection_combo.clear()

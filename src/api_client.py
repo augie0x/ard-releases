@@ -1,5 +1,5 @@
 # api_client.py
-
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -218,6 +218,80 @@ class APIClient:
             logger.error(f"Authentication error: {str(e)}")
             return None
 
+    def get_adjustment_rules_by_ids(self, rule_ids):
+        """
+        Retrieves specific adjustment rules using the apply_read endpoint.
+
+        This method uses the specialized endpoint for rule retrieval that accepts a POST request
+        with a filter payload. The apply_read endpoint is specifically designed for querying
+        adjustment rules with filters.
+
+        Args:
+            rule_ids: Either a single rule ID (int) or a list of rule IDs to retrieve
+
+        Returns:
+            dict: The rule data if found
+        """
+        if not self.access_token:
+            raise Exception("Access token is missing. Please authenticate first.")
+
+        # Ensure base hostname is properly formatted
+        base_hostname = self.settings_manager.base_hostname.rstrip('/')
+
+        # Construct the proper endpoint URL - now explicitly including apply_read
+        adjustment_rules_url = f"{base_hostname}/api/v1/timekeeping/setup/adjustment_rules/apply_read"
+
+        # Convert single ID to list if necessary
+        if not isinstance(rule_ids, list):
+            rule_ids = [int(rule_ids)]
+        else:
+            rule_ids = [int(rule_id) for rule_id in rule_ids]
+
+        # Construct the request payload
+        payload = {
+            "where": {
+                "adjustmentRules": {
+                    "ids": rule_ids[0] if len(rule_ids) == 1 else rule_ids  # Send single ID or array based on count
+                }
+            }
+        }
+
+        headers = {
+            'Authorization': f"{self.token_type} {self.access_token}",
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        print(f"Request URL: {adjustment_rules_url}")
+        print(f"Request payload: {json.dumps(payload, indent=2)}")
+
+        try:
+            response = requests.post(adjustment_rules_url, json=payload, headers=headers)
+            print(f"Response status: {response.status_code}")
+
+            if response.status_code == 401:
+                print("Received 401, attempting token refresh")
+                if self.refresh_auth_token():
+                    headers['Authorization'] = f"{self.token_type} {self.access_token}"
+                    response = requests.post(adjustment_rules_url, json=payload, headers=headers)
+                else:
+                    raise Exception("Token refresh failed. Please authenticate again")
+
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    return data[0] if len(rule_ids) == 1 else data
+                else:
+                    raise Exception(f"No rules found for IDs: {rule_ids}")
+            else:
+                error_message = f"API request failed with status code: {response.status_code}"
+                if response.text:
+                    error_message += f"\nResponse: {response.text}"
+                raise Exception(error_message)
+
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"API request failed: {str(e)}")
+
     def get_adjustment_rules(self):
         """
         Retrieves adjustment rules from the API.
@@ -256,17 +330,18 @@ class APIClient:
 
             if response.status_code == 200:
                 data = response.json()
+                print("\nAPI Response structure:")
+                print(json.dumps(data[0] if isinstance(data, list) and data else {}, indent=2))
                 if isinstance(data, list):
                     if data:
                         first_rule = data[0]
                         # Process and extract triggers
-                        from src.data_loader import DataLoader  # Make sure to import at the top
+                        from src.data_loader import DataLoader
                         triggers = DataLoader.extract_triggers(data)
                         return triggers  # Return triggers instead of raw data
 
                 return data
 
-                return data
             else:
                 # print(f"Error response content: {response.text[:500]}")
                 raise Exception(f"API request failed with status code: {response.status_code}")

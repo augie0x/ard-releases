@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import (
 
 from .connection_manager import ConnectionManager
 
-
 class ConnectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)

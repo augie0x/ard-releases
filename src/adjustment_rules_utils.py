@@ -1,7 +1,25 @@
+# adjustment_rules_utils.py
+import copy
+
+
 class AdjustmentRuleUpdater:
+    """
+    A utility class for managing adjustment rule updates and payload creation.
+    This class handles the conversion of table data into properly structured API payloads
+    for creating and updating adjustment rules.
+    """
+
     @staticmethod
     def __parse_boolean(value):
-        """Helper method to parse boolean values"""
+        """
+        Converts various input formats to boolean values.
+
+        Args:
+            value: The input value to parse (can be bool, str, or other)
+
+        Returns:
+            bool: True if the value represents a truthy value, False otherwise
+        """
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -10,13 +28,159 @@ class AdjustmentRuleUpdater:
 
     @staticmethod
     def __clean_value(value):
-        """Clean value by removing N/A and empty strings"""
-        if not value or value.lower() == 'n/a':
+        """
+        Sanitizes input values by removing empty or N/A values.
+
+        Args:
+            value: The input value to clean
+
+        Returns:
+            The cleaned value or None if the value is empty or N/A
+        """
+        if not value or (isinstance(value, str) and value.lower() == 'n/a'):
             return None
         return value
 
+    def _get_valid_effective_date(rule_data, original_trigger):
+        """
+        Gets a valid effective date, with proper fallback handling.
+
+        Args:
+            rule_data (dict): The modified rule data
+            original_trigger (dict): The original trigger data
+
+        Returns:
+            str: A valid effective date string in YYYY-MM-DD format
+        """
+        effective_date = rule_data.get('Effective Date')
+
+        if not effective_date and original_trigger:
+            original_version = original_trigger.get('ruleVersions', {}).get('adjustmentRuleVersion', [{}])[0]
+            effective_date = original_version.get('effectiveDate')
+
+        if not effective_date:
+            effective_date = "1753-01-01"
+
+        return effective_date
+
     @staticmethod
-    def create_update_payload(table_data, separate_rules=False):
+    def _get_valid_version_number(rule_data, original_trigger):
+        """
+        Gets a valid version number for the trigger, with proper fallback handling.
+
+        Args:
+            rule_data (dict): The modified rule data
+            original_trigger (dict): The original trigger data
+
+        Returns:
+            str: A valid version number, defaulting to "1" if none found
+        """
+        version_num = rule_data.get('Version Number')
+
+        if not version_num and original_trigger:
+            original_version = original_trigger.get('ruleVersions', {}).get('adjustmentRuleVersion', [{}])[0]
+            original_triggers = original_version.get('triggers', {}).get('adjustmentTriggerForRule', [{}])
+            if original_triggers:
+                version_num = original_triggers[0].get('versionNum')
+        if not version_num:
+            version_num = "1"
+
+        return str(version_num)  # Ensure we always return a string
+
+    @staticmethod
+    def parse_float(value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def parse_boolean(value, default=False):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() == 'true'
+        return default
+
+    @staticmethod
+    def create_update_payload(table_data, original_trigger=None):
+        """Creates the update payload while preserving all unmodified triggers."""
+        if not isinstance(table_data, list):
+            raise ValueError("Table data must be a list")
+
+        rule_data = table_data[0]
+        if not original_trigger:
+            raise ValueError("Original trigger data is required for updates")
+
+        # Get the original version and trigger data
+        try:
+            original_version = original_trigger['ruleVersions']['adjustmentRuleVersion'][0]
+            original_triggers = original_version['triggers']['adjustmentTriggerForRule']
+            if not isinstance(original_triggers, list):
+                original_triggers = [original_triggers]
+        except (KeyError, IndexError) as e:
+            raise ValueError(f"Invalid original trigger structure: {e}")
+
+        # Deep copy the original version to preserve it
+        updated_version = copy.deepcopy(original_version)
+
+        # Find the trigger that matches our modification
+        modified_version_num = rule_data.get('Version Number')
+
+        # Convert triggers to list if it's not already
+        if not isinstance(updated_version['triggers']['adjustmentTriggerForRule'], list):
+            updated_version['triggers']['adjustmentTriggerForRule'] = [
+                updated_version['triggers']['adjustmentTriggerForRule']]
+
+        # Find and update only the matching trigger
+        triggers_list = updated_version['triggers']['adjustmentTriggerForRule']
+        for i, trigger in enumerate(triggers_list):
+            if str(trigger.get('versionNum')) == str(modified_version_num):
+                # Update this specific trigger while preserving its structure
+                updated_trigger = copy.deepcopy(trigger)
+
+                # Update the adjustment allocation
+                adjustment_type = rule_data.get('Adjustment Type')
+                if 'adjustmentAllocation' not in updated_trigger:
+                    updated_trigger['adjustmentAllocation'] = {'adjustmentAllocation': {}}
+
+                allocation = updated_trigger['adjustmentAllocation']['adjustmentAllocation']
+                allocation['adjustmentType'] = adjustment_type
+
+                # Update appropriate fields based on adjustment type
+                if adjustment_type == "Bonus":
+                    allocation.update({
+                        'bonusRateAmount': float(rule_data.get('Bonus Rate Amount', 0)),
+                        'oncePerDay': AdjustmentRuleUpdater.parse_boolean(rule_data.get('Once Per Day')),
+                        'timePeriod': rule_data.get('Time Period', 'Shift'),
+                        'jobCodeType': rule_data.get('Job Code Type', 'Worked')
+                    })
+                else:  # Wage type
+                    allocation.update({
+                        'amount': float(rule_data.get('Amount', 0)),
+                        'type': rule_data.get('Type', 'FlatRate'),
+                        'overrideIfPrimaryJobSwitch': AdjustmentRuleUpdater.parse_boolean(
+                            rule_data.get('Override If Primary Job Switch')),
+                        'useHighestWageSwitch': AdjustmentRuleUpdater.parse_boolean(
+                            rule_data.get('Use Highest Wage Switch'))
+                    })
+
+                # Replace the trigger in our list with the updated version
+                triggers_list[i] = updated_trigger
+                break
+
+        # Construct the payload with all triggers
+        payload = {
+            "id": int(rule_data.get('Rule ID', original_trigger.get('id', 0))),
+            "name": rule_data.get('Rule Name', original_trigger.get('name', '')),
+            "ruleVersions": {
+                "adjustmentRuleVersion": [updated_version]
+            }
+        }
+
+        return payload
+
+    def create_export_payload(table_data, separate_rules=False):
         """
         Creates the update payload from table data
         Args:
@@ -131,3 +295,58 @@ class AdjustmentRuleUpdater:
             # Return first rule containing all versions for API
             first_rule_id = next(iter(rules_by_id))
             return rules_by_id[first_rule_id]
+
+    @staticmethod
+    def _create_adjustment_allocation(rule_data):
+        """
+        Creates the adjustment allocation based on the adjustment type.
+        Handles both Bonus and Wage type allocations with their specific fields.
+
+        Args:
+            rule_data (dict): Dictionary containing the rule data
+
+        Returns:
+            dict: A properly formatted adjustment allocation object
+        """
+        adjustment_type = rule_data.get('Adjustment Type')
+        if not adjustment_type:
+            return {}
+
+        # Initialize base allocation with type
+        allocation = {
+            "adjustmentType": adjustment_type
+        }
+
+        # Handle Bonus type adjustments
+        if adjustment_type == "Bonus":
+            bonus_fields = {
+                "bonusRateAmount": AdjustmentRuleUpdater.__clean_value(rule_data.get('Bonus Rate Amount')),
+                "jobCodeType": rule_data.get('Job Code Type', 'Worked'),
+                "timePeriod": rule_data.get('Time Period', 'Shift'),
+                "oncePerDay": AdjustmentRuleUpdater.__parse_boolean(rule_data.get('Once Per Day', 'false'))
+            }
+            # Only add non-None values to the allocation
+            allocation.update({k: v for k, v in bonus_fields.items() if v is not None})
+
+        # Handle Wage type adjustments
+        elif adjustment_type == "Wage":
+            # Convert amount to float and handle potential conversion errors
+            amount = rule_data.get('Amount', '0')
+            try:
+                amount = float(amount)
+            except (ValueError, TypeError):
+                amount = 0.0
+
+            wage_fields = {
+                "amount": amount,
+                "type": rule_data.get('Type', 'FlatRate'),
+                "overrideIfPrimaryJobSwitch": AdjustmentRuleUpdater.__parse_boolean(
+                    rule_data.get('Override If Primary Job Switch', 'false')),
+                "useHighestWageSwitch": AdjustmentRuleUpdater.__parse_boolean(
+                    rule_data.get('Use Highest Wage Switch', 'false'))
+            }
+            # Only add non-None values to the allocation
+            allocation.update({k: v for k, v in wage_fields.items() if v is not None})
+
+        return allocation
+

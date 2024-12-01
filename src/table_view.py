@@ -1,7 +1,7 @@
 # table_view.py
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMenu, QAction, QApplication, QShortcut
 
 
@@ -15,6 +15,7 @@ class TableView(QTableWidget):
         self.customContextMenuRequested.connect(self.context_menu)
         self.selectionModel().selectionChanged.connect(self.highlight_selection)
         self.undo_stack = []
+        self.current_rules_data = None
 
         self.original_values = {} # Dictionary to track original values
 
@@ -46,7 +47,7 @@ class TableView(QTableWidget):
             "Trigger Pay Codes",  # 9
             # Bonus Details
             "Bonus Rate Amount",  # 10
-            "Bonus Rate Hourly Rate",  # 11
+            "Bonus Hourly Rate",  # 11
             "Once Per Day",  # 12
             "Time Period",  # 13
             "Job Code Type",  # 14
@@ -317,6 +318,7 @@ class TableView(QTableWidget):
         Populates the table with the list of triggers.
         """
         self.setRowCount(len(triggers))
+        self.current_rules_data = triggers
 
         for row, trigger in enumerate(triggers):
             # Initialize all cells in the row first
@@ -371,7 +373,6 @@ class TableView(QTableWidget):
             adjustment_allocation = trigger.get("adjustmentAllocation", {}).get("adjustmentAllocation", {})
             adjustment_type = adjustment_allocation.get("adjustmentType", "Unknown").strip()
 
-            bonus_pay_code_column = self.columnCount() - 1 # Always use the last column
             bonus_pay_code_column = self.columnCount() - 1
 
             if adjustment_type == "Bonus":
@@ -495,6 +496,62 @@ class TableView(QTableWidget):
                 if key not in self.original_values:
                     self.original_values[key] = item.text()
                     #print(f"Stored original value (from selection): {key} = {item.text()}")
+
+    def get_modified_row_data(self):
+        modified_data = []
+        processed_rules = set()
+
+        modifications_by_rule = {}
+
+        for (row, col) in self.modified_cells:
+            # Get the Rule ID from the first column
+            item = self.item(row, 0)
+            if not item:
+                continue
+
+            rule_id = item.text()
+
+            if rule_id not in modifications_by_rule:
+                modifications_by_rule[rule_id] = []
+
+            # Get the header text for this column using horizontalHeaderItem
+            header_item = self.horizontalHeaderItem(col)
+            if not header_item:
+                continue
+
+            header = header_item.text()
+
+            # Get the current value
+            current_item = self.item(row, col)
+            if not current_item:
+                continue
+
+            current_value = current_item.text()
+
+            # Only add if the value is meaningful
+            if current_value and current_value.lower() != 'n/a':
+                modifications_by_rule[rule_id].append({
+                    'column': header,
+                    'value': current_value,
+                    'row': row
+                })
+
+        for rule_id, modifications in modifications_by_rule.items():
+            if modifications:
+                row =modifications[0]['row']
+                rule_data = {
+                    'Rule ID': rule_id,
+                    'Rule Name': self.item(row,1).text(),
+                    'Adjustment Type': self.item(row, 3).text(),
+                    'Version Number': self.item(row, 4).text()
+                }
+
+                for mod in modifications:
+                    rule_data[mod['column']] = mod['value']
+
+                modified_data.append(rule_data)
+
+        return modified_data
 
     """def print_debug_info(self):
         print("\nDebug Information:")

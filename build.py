@@ -66,7 +66,6 @@ def build_executable():
     command = [
         'main.py',
         f'--name={__app_name__.replace(" ", "")}',
-        f'--version={__version__}',
         '--onefile',
         '--windowed',
         '--add-data=resources/images;resources/images',

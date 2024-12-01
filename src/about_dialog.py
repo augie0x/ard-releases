@@ -20,7 +20,7 @@ class AboutDialog(QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(20,20,20,20)
 
-        app_name = QLabel("Adjustment Rule Demystifier v1.1")
+        app_name = QLabel("Adjustment Rule Demystifier v1.1.0")
         font = QFont()
         font.setBold(True)
         font.setPointSize(14)

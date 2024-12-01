@@ -7,10 +7,10 @@ import zipfile
 from datetime import datetime
 
 import requests
-from PyQt5.QtCore import QSettings, QSize
+from PyQt5.QtCore import QSettings, QSize, QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox, QProgressDialog
 from qt_material import apply_stylesheet
 
 from src.about_dialog import AboutDialog
@@ -26,6 +26,7 @@ from src.table_view import TableView
 from src.utils import SettingsManager
 from src.utils import get_resource_path
 from src.recent_files_manager import RecentFilesManager
+from src.version_manager import VersionManager
 
 
 def resource_path(relative_path):
@@ -41,6 +42,26 @@ def resource_path(relative_path):
 
 icon_path = resource_path("resources/images/icon.ico")
 
+class UpdateWorker(QThread):
+    progress = pyqtSignal(float)
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, version_manager):
+        super().__init__()
+        self.version_manager = version_manager
+
+    def run(self):
+        try:
+            installer_path = self.version_manager.download_update(
+                progress_callback=lambda p: self.progress.emit(p)
+            )
+            if installer_path:
+                self.finished.emit(installer_path)
+            else:
+                self.error.emit("Failed to download update")
+        except Exception as e:
+            self.error.emit(str(e))
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -56,7 +77,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1600, 800)  # Adjust as needed
         self.statusBar = self.statusBar()
 
-        # Initialize managers
+        # Initialise managers
         self.api_client = APIClient()
         self.settings_manager = SettingsManager()
         self.connection_manager = ConnectionManager()
@@ -204,6 +225,57 @@ class MainWindow(QMainWindow):
         # API retrieve and update buttons default state
         self.fetch_api_button.setEnabled(False)
         self.update_rules_button.setEnabled(False)
+
+        # Initialise version manager
+        self.version_manager = VersionManager(
+            current_version="1.1.0",
+            repository_url="https://api.github.com/repos/augie0x/ard-releases"
+        )
+
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.check_for_updates)
+        self.update_timer.start(3600000)
+
+        QTimer.singleShot(5000, self.check_for_updates)
+
+    def check_for_updates(self):
+        update_available, update_info = self.version_manager.check_for_updates()
+
+        if update_available:
+            reply = QMessageBox.question(
+                self,
+                "Update Available",
+                f"Version {update_info['version']} is available. Would you like to update?\n\n"
+                f"Release Notes:\n{update_info['release_notes']}",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+
+            if reply == QMessageBox.Yes:
+                self.start_update()
+
+    def start_update(self):
+        self.progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, 100, self)
+        self.progress_dialog.setWindowModality(Qt.WindowModal)
+        self.update_worker = UpdateWorker(self.version_manager)
+        self.update_worker.progress.connect(self.progress_dialog.setValue)
+        self.update_worker.finished.connect(self.finish_update)
+        self.update_worker.error.connect(self.handle_update_error)
+        self.update_worker.start()
+
+    def finish_update(self, installer_path):
+        self.progress_dialog.close()
+
+        reply = QMessageBox.question(self, "Install Update",
+                                     "The update has been downloaded, The application will close to install the update. Continue?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+
+        if reply == QMessageBox.Yes:
+            self.version_manager.install_update(installer_path)
+
+    def handle_update_error(self, error_message):
+        self.progress_dialog.close()
+        QMessageBox.critical(self, "Update Error", f"An error occured during the update:\n{error_message}")
 
 
     def create_menu_bar(self):
@@ -844,8 +916,6 @@ class MainWindow(QMainWindow):
             self.recent_files_manager.clear_recent_files()
             self.update_recent_files_menu()
             self.statusBar.showMessage("Recent files cleared")
-
-
 
 def main():
     app = QApplication(sys.argv)

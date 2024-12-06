@@ -172,9 +172,9 @@ class MainWindow(QMainWindow):
         self.update_rules_button.setIconSize(QSize(24, 24))
         self.update_rules_button.setToolTip("Update Adjustment Rules")
         self.update_rules_button.clicked.connect(self.update_adjustment_rules)
-        self.update_rules_button.setEnabled(False)
         self.update_rules_button.setFixedSize(40, 40)
         self.update_rules_button.setFlat(True)
+        self.update_rules_button.setEnabled(False)
         left_buttons_layout.addWidget(self.update_rules_button)
 
         # Export JSON Button
@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
         self.export_json_button.clicked.connect(self.export_to_json)
         self.export_json_button.setFixedSize(40, 40)
         self.export_json_button.setFlat(True)
+        self.export_json_button.setEnabled(False)
         left_buttons_layout.addWidget(self.export_json_button)
 
         # Add left buttons group to top layout
@@ -377,7 +378,7 @@ class MainWindow(QMainWindow):
         self.api_client.set_tokens(None, None, None)
         self.fetch_api_button.setEnabled(False)
         self.update_rules_button.setEnabled(False)
-        # self.connect_btn.setText("Connect to Tenant")
+        self.export_json_button.setEnabled(False)
         QMessageBox.information(self, "Disconnected", "Successfully disconnected from tenant.")
 
     def update_connection_status(self, connected=False, tenant_name=None):
@@ -481,6 +482,8 @@ class MainWindow(QMainWindow):
                     self.rule_filter_combo.setCurrentText("All Rules")
                     self.rule_filter_combo.blockSignals(False)
                     self.filter_by_rule()
+                    self.export_json_button.setEnabled(True)
+                    self.update_rules_button.setEnabled(True)
                     '''QMessageBox.information(
                         self,
                         "Success",
@@ -531,10 +534,10 @@ class MainWindow(QMainWindow):
                 if triggers:
                     self.table_view.display_triggers(triggers)
                     self.populate_rule_filter_combo(triggers)
+                    self.export_json_button.setEnabled(True)
+                    self.update_rules_button.setEnabled(True)
                     self.recent_files_manager.add_file(file_name)
                     self.update_recent_files_menu()
-                    '''QMessageBox.information(self, "Success",
-                                            f"JSON file loaded and parsed successfully.")'''
                 else:
                     QMessageBox.warning(self, "No Triggers Found",
                                         "No adjustment triggers were found in the JSON file. Please verify the file format.")
@@ -695,50 +698,44 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            print("Getting modified rows")
-            # Get only the modified rows
             modified_data = self.table_view.get_modified_row_data()
 
             if not modified_data:
-                print("No modifications detected")
                 QMessageBox.information(self, "No Changes", "No modifications detected.")
                 return
 
             # Processing each modified rule separately
             for rule_data in modified_data:
                 rule_id = rule_data.get('Rule ID')
-                print(f"Processing rule ID: {rule_id}")
                 if not rule_id:
-                    print("No rule ID found, skipping")
+                    #print("No rule ID found, skipping")
                     continue
 
                 # Get original trigger data from the retreive API
-                print(f"Getting original trigger data for rule {rule_id}")
                 original_trigger = self.api_client.get_adjustment_rules_by_ids(rule_id)
                 if not original_trigger:
-                    print(f"Could not retrieve original data for rule {rule_id}")
                     raise Exception(f"Could not retrieve original data for rule {rule_id}")
 
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
                 if not original_trigger:
-                    print(f"\nFailed to find rule {rule_id} in stored data")
+                    #print(f"\nFailed to find rule {rule_id} in stored data")
                     raise Exception(f"Could not find original data for rule {rule_id}")
 
                 # Create payload using both modified and original data
-                print("Creating update payload")
+                #print("Creating update payload")
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
-                print(f"\nSending update for rule {rule_id}:")
-                print(json.dumps(payload, indent=2))
+                #print(f"\nSending update for rule {rule_id}:")
+                #print(json.dumps(payload, indent=2))
 
                 # Send update request
                 base_hostname = self.api_client.base_hostname.rstrip('/')
                 url = f"{self.api_client.base_hostname}/api/v1/timekeeping/setup/adjustment_rules/{rule_id}"
                 # Debug print the URL and payload
-                print(f"\nAttempting to update rule {rule_id}")
-                print(f"URL: {url}")
-                print(f"Payload: {json.dumps(payload, indent=2)}")
+                #print(f"\nAttempting to update rule {rule_id}")
+                #print(f"URL: {url}")
+                #print(f"Payload: {json.dumps(payload, indent=2)}")
 
                 # Set headers
                 headers = {
@@ -747,16 +744,16 @@ class MainWindow(QMainWindow):
                 }
 
                 # Make the request using PUT method
-                print("Making PUT request")
+                #print("Making PUT request")
                 response = requests.put(url, json=payload, headers=headers)
-                print(f"Response status code: {response.status_code}")
+                #print(f"Response status code: {response.status_code}")
 
                 if response.status_code != 200:
-                    print(f"Error response: {response.text}")
+                    #print(f"Error response: {response.text}")
                     error_msg = f"Failed to update rule {rule_id}"
                     try:
                         error_details = response.json()
-                        print(f"\nError response: {json.dumps(error_details, indent=2)}")
+                        #print(f"\nError response: {json.dumps(error_details, indent=2)}")
                         if 'message' in error_details:
                             error_msg += f": {error_details['message']}"
                     except:

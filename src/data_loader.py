@@ -11,10 +11,8 @@ class DataLoader:
                 data = json.load(f)
             return data
         except json.JSONDecodeError as e:
-            # print(f"JSON decode error: {e}")
             return None
         except Exception as e:
-            # print(f"Error loading JSON file: {e}")
             return None
 
     @staticmethod

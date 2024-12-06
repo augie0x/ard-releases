@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser, QPushButton, QDialogButtonBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox)
+
 from src.version import __app_name__
+
 
 class HelpDialog(QDialog):
     def __init__(self, parent = None):

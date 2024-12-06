@@ -336,7 +336,7 @@ class MainWindow(QMainWindow):
 
         # About Menu
         about_menu = menubar.addMenu("About")
-        about_action = QAction('About Adjustment Rule Demystifier', self)
+        about_action = QAction('About Adjustment Rule Updater', self)
         about_action.triggered.connect(self.show_about)
         about_menu.addAction(about_action)
 

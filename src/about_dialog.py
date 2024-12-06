@@ -48,7 +48,6 @@ class AboutDialog(QDialog):
         logo_pixmap = QPixmap(get_resource_path("resources/images/ard.png"))
         logo_label.setPixmap(logo_pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         logo_label.setAlignment(Qt.AlignCenter)
-        layout.insertWidget(0, logo_label)  # Add at the top of the dial
-        # og
+        layout.insertWidget(0, logo_label)
 
         self.setLayout(layout)

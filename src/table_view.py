@@ -75,8 +75,8 @@ class TableView(QTableWidget):
             width = header.sectionSize(col)
             self.setColumnWidth(col, width + 20)
 
-        self.setAlternatingRowColors(True)  # Improve readability
-        self.setSortingEnabled(True)  # Allow sorting
+        self.setAlternatingRowColors(True)
+        self.setSortingEnabled(True)
 
         header.setVisible(True)
         header.setStretchLastSection(True)
@@ -125,7 +125,7 @@ class TableView(QTableWidget):
                 old_value = item.text()
                 self.undo_stack.append((row, col, old_value, "")) # Add the action to the undo stack
                 item.setText("") # Clear the content of the cell
-                self.modified_cells.add((row, col)) # Add the cell to modified cells set for tracking purposes
+                self.modified_cells.add((row, col)) # Add the cell to modified cells set for tracking
                 item.setBackground(QColor("#e06666")) # Change the background color to indicate a change
 
     def do_copy(self):
@@ -134,7 +134,6 @@ class TableView(QTableWidget):
         if not selected_ranges:
             return
 
-        # Assuming the user wants to copy a rectangular area
         text_to_copy = ""
         for selected_range in selected_ranges:
             for row in range(selected_range.topRow(), selected_range.bottomRow() + 1):
@@ -192,7 +191,6 @@ class TableView(QTableWidget):
 
     def before_edit(self, item):
         self.current_edit = (item.row(), item.column(), item.text())
-        #print(f"Before edit: {self.current_edit}")  # Debug print
 
     def after_edit(self,item):
         if self.signalsBlocked():
@@ -207,7 +205,6 @@ class TableView(QTableWidget):
             old_value = new_value
 
         if old_value != new_value:
-            #print(f"Recording change: ({row}, {col}) from '{old_value}' to '{new_value}'")  # Debug print
             self.undo_stack.append((row, col, old_value, new_value))
             self.modified_cells.add((row,col))
             item.setBackground(QColor("#FFFF99"))
@@ -216,9 +213,6 @@ class TableView(QTableWidget):
 
     def do_undo(self):
         """Undo the last change"""
-        #print("\nAttempting undo operation...")
-        #print(f"Current undo stack size: {len(self.undo_stack)}")
-        #print(f"Modified cells count: {len(self.modified_cells)}")
 
         if not self.undo_stack:
             return
@@ -226,8 +220,6 @@ class TableView(QTableWidget):
         # Get the last change
         row, col, old_value, new_value = self.undo_stack.pop()
         key = (row, col)
-        #print(f"Undoing change at ({row}, {col})")
-        #print(f"Reverting from '{new_value}' to '{old_value}'")
 
         self.blockSignals(True)
 
@@ -250,10 +242,8 @@ class TableView(QTableWidget):
                     )
                     item.setBackground(color)
                     self.modified_cells.discard(key)  # Use the key tuple consistently
-                    #print(f"Restored original color for cell ({row}, {col})")
                 else:
                     item.setBackground(QColor("#FFFF99"))
-                    #print(f"Kept highlight color for cell ({row}, {col}) - has more changes")
         finally:
             self.blockSignals(False)
 
@@ -302,7 +292,6 @@ class TableView(QTableWidget):
         if 'qualifier' in data_dict:
             return data_dict['qualifier']
         return "N/A"
-        # return ", ".join([f"{k}: {v}" for k, v in data_dict.items()])
 
     def format_pay_codes(self, pay_codes):
         """
@@ -470,17 +459,11 @@ class TableView(QTableWidget):
         # Get the original value if we have it
         original_value = self.original_values.get(key)
 
-        #print(f"Change detected - Row: {row}, Col: {col}")
-        #print(f"Original value: {original_value}")
-        #print(f"Current value: {current_value}")
-
         if original_value is not None and original_value != current_value:
             change_entry = (row, col, original_value, current_value)
             self.undo_stack.append(change_entry)
             self.modified_cells.add(key)
             item.setBackground(QColor("#FFFF99"))
-            #print(f"Added to undo stack: {change_entry}")
-            #print(f"Undo stack size now: {len(self.undo_stack)}")
 
             # Clear the stored original value
             self.original_values.pop(key, None)
@@ -491,10 +474,9 @@ class TableView(QTableWidget):
             item = self.item(current_row, current_col)
             if item:
                 key = (current_row, current_col)
-                # Only store if we don't already have an original value for this cell
+                # Only store if there is no original value for this cell
                 if key not in self.original_values:
                     self.original_values[key] = item.text()
-                    #print(f"Stored original value (from selection): {key} = {item.text()}")
 
     def get_modified_row_data(self):
         modified_data = []
@@ -551,11 +533,3 @@ class TableView(QTableWidget):
                 modified_data.append(rule_data)
 
         return modified_data
-
-    """def print_debug_info(self):
-        print("\nDebug Information:")
-        print(f"Undo stack size: {len(self.undo_stack)}")
-        print(f"Modified cells: {len(self.modified_cells)}")
-        print("Last 5 undo stack entries:")
-        for entry in self.undo_stack[-5:]:
-            print(entry)"""

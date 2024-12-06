@@ -235,10 +235,10 @@ class APIClient:
         if not self.access_token:
             raise Exception("Access token is missing. Please authenticate first.")
 
-        # Ensure base hostname is properly formatted
+        # Base Hostname formatting. removing the forward slash if present
         base_hostname = self.settings_manager.base_hostname.rstrip('/')
 
-        # Construct the proper endpoint URL - now explicitly including apply_read
+        # Endpoint URL construction
         adjustment_rules_url = f"{base_hostname}/api/v1/timekeeping/setup/adjustment_rules/apply_read"
 
         # Convert single ID to list if necessary

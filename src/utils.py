@@ -74,9 +74,7 @@ class SettingsManager:
 def get_resource_path(relative_path):
     """Get the absolute path to a resource file"""
     if hasattr(sys, '_MEIPASS'):
-        # Running as compiled executable
         return os.path.join(sys._MEIPASS, relative_path)
-    # Running as script
     return os.path.join(os.path.abspath("."), relative_path)
 
 

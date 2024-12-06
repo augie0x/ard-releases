@@ -85,7 +85,7 @@ class AdjustmentRuleUpdater:
         if not version_num:
             version_num = "1"
 
-        return str(version_num)  # Ensure we always return a string
+        return str(version_num)  # Always return a string value
 
     @staticmethod
     def parse_float(value, default=0.0):
@@ -124,7 +124,7 @@ class AdjustmentRuleUpdater:
         # Deep copy the original version to preserve it
         updated_version = copy.deepcopy(original_version)
 
-        # Find the trigger that matches our modification
+        # Find the trigger that matches the modification
         modified_version_num = rule_data.get('Version Number')
 
         # Convert triggers to list if it's not already
@@ -136,7 +136,7 @@ class AdjustmentRuleUpdater:
         triggers_list = updated_version['triggers']['adjustmentTriggerForRule']
         for i, trigger in enumerate(triggers_list):
             if str(trigger.get('versionNum')) == str(modified_version_num):
-                # Update this specific trigger while preserving its structure
+                # Update the specific trigger while preserving the full structure
                 updated_trigger = copy.deepcopy(trigger)
 
                 # Update the adjustment allocation
@@ -147,7 +147,7 @@ class AdjustmentRuleUpdater:
                 allocation = updated_trigger['adjustmentAllocation']['adjustmentAllocation']
                 allocation['adjustmentType'] = adjustment_type
 
-                # Update appropriate fields based on adjustment type
+                # Update fields based on adjustment type
                 if adjustment_type == "Bonus":
                     allocation.update({
                         'bonusRateAmount': float(rule_data.get('Bonus Rate Amount', 0)),
@@ -165,7 +165,7 @@ class AdjustmentRuleUpdater:
                             rule_data.get('Use Highest Wage Switch'))
                     })
 
-                # Replace the trigger in our list with the updated version
+                # Replace the trigger in the list with the updated version
                 triggers_list[i] = updated_trigger
                 break
 

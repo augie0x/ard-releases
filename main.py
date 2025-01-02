@@ -384,7 +384,6 @@ class MainWindow(QMainWindow):
     def update_connection_status(self, connected=False, tenant_name=None):
         """Update UI elements based on connection status"""
         # print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
-        print(f"Updating connection status: connected={connected}")
         self.fetch_api_button.setEnabled(connected)
         self.update_rules_button.setEnabled(connected)
 
@@ -698,9 +697,11 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            #print("Getting modified rows")
             modified_data = self.table_view.get_modified_row_data()
 
             if not modified_data:
+                print("No modifications detected")
                 QMessageBox.information(self, "No Changes", "No modifications detected.")
                 return
 
@@ -719,7 +720,7 @@ class MainWindow(QMainWindow):
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
                 if not original_trigger:
-                    #print(f"\nFailed to find rule {rule_id} in stored data")
+                    print(f"\nFailed to find rule {rule_id} in stored data")
                     raise Exception(f"Could not find original data for rule {rule_id}")
 
                 # Create payload using both modified and original data
@@ -727,7 +728,7 @@ class MainWindow(QMainWindow):
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
                 #print(f"\nSending update for rule {rule_id}:")
-                #print(json.dumps(payload, indent=2))
+                #print(f"Modified data for rule: {json.dumps(rule_data, indent=2)}")
 
                 # Send update request
                 base_hostname = self.api_client.base_hostname.rstrip('/')
@@ -749,11 +750,11 @@ class MainWindow(QMainWindow):
                 #print(f"Response status code: {response.status_code}")
 
                 if response.status_code != 200:
-                    #print(f"Error response: {response.text}")
+                    print(f"Error response: {response.text}")
                     error_msg = f"Failed to update rule {rule_id}"
                     try:
                         error_details = response.json()
-                        #print(f"\nError response: {json.dumps(error_details, indent=2)}")
+                        print(f"\nError response: {json.dumps(error_details, indent=2)}")
                         if 'message' in error_details:
                             error_msg += f": {error_details['message']}"
                     except:

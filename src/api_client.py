@@ -220,7 +220,7 @@ class APIClient:
 
     def get_adjustment_rules_by_ids(self, rule_ids):
         """
-        Retrieves specific adjustment rules using the apply_read endpoint.
+        Retrieves specific adjustment rules using the endpoint.
 
         This method uses the specialized endpoint for rule retrieval that accepts a POST request
         with a filter payload. The apply_read endpoint is specifically designed for querying
@@ -262,15 +262,15 @@ class APIClient:
             'Accept': 'application/json'
         }
 
-        print(f"Request URL: {adjustment_rules_url}")
-        print(f"Request payload: {json.dumps(payload, indent=2)}")
+        #print(f"Request URL: {adjustment_rules_url}")
+        #print(f"Request payload: {json.dumps(payload, indent=2)}")
 
         try:
             response = requests.post(adjustment_rules_url, json=payload, headers=headers)
-            print(f"Response status: {response.status_code}")
+            #print(f"Response status: {response.status_code}")
 
             if response.status_code == 401:
-                print("Received 401, attempting token refresh")
+                #print("Received 401, attempting token refresh")
                 if self.refresh_auth_token():
                     headers['Authorization'] = f"{self.token_type} {self.access_token}"
                     response = requests.post(adjustment_rules_url, json=payload, headers=headers)
@@ -279,6 +279,7 @@ class APIClient:
 
             if response.status_code == 200:
                 data = response.json()
+                #print(f"Retrieved rule data structure:")
                 if data and len(data) > 0:
                     return data[0] if len(rule_ids) == 1 else data
                 else:

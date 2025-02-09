@@ -180,6 +180,7 @@ class AdjustmentRuleUpdater:
 
         return payload
 
+    @staticmethod
     def create_export_payload(table_data, separate_rules=False):
         """
         Creates the update payload from table data
@@ -187,6 +188,16 @@ class AdjustmentRuleUpdater:
             table_data: List of rule data from table
             separate_rules: If True, returns dict of rules by ID. If False, returns single rule with all versions
         """
+
+        def safe_float_convert(value, default=0.0):
+            """Safely convert a value to float, returning default if conversion fails"""
+            if not value or value.lower() == 'n/a':
+                return default
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+
         if not isinstance(table_data, list):
             raise ValueError("Table data must be a list")
 
@@ -245,7 +256,7 @@ class AdjustmentRuleUpdater:
             if rule_data.get('Adjustment Type') == 'Bonus':
                 adjustment_allocation.update({
                     "adjustmentType": "Bonus",
-                    "bonusRateAmount": rule_data.get('Bonus Rate Amount', '1.00'),
+                    "bonusRateAmount": safe_float_convert(rule_data.get('Bonus Rate Amount')),
                     "jobCodeType": rule_data.get('Job Code Type', 'Worked'),
                     "timePeriod": rule_data.get('Time Period', 'Shift'),
                     "oncePerDay": AdjustmentRuleUpdater.__parse_boolean(rule_data.get('Once Per Day', True))
@@ -260,7 +271,7 @@ class AdjustmentRuleUpdater:
             else:  # Wage type
                 adjustment_allocation.update({
                     "adjustmentType": "Wage",
-                    "amount": float(rule_data.get('Amount', 0)),
+                    "amount": safe_float_convert(rule_data.get('Amount')),
                     "type": rule_data.get('Type', 'FlatRate'),
                     "overrideIfPrimaryJobSwitch": AdjustmentRuleUpdater.__parse_boolean(
                         rule_data.get('Override If Primary Job Switch', False)

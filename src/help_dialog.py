@@ -29,7 +29,7 @@ class HelpDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.setStyleSheet("""
                QPushButton {
-                   background-color: #1976D2;
+                   background-color: #008080;
                    color: white;
                    border: none;
                    padding: 6px 20px;
@@ -37,10 +37,10 @@ class HelpDialog(QDialog):
                    min-width: 80px;
                }
                QPushButton:hover {
-                   background-color: #1565C0;
+                   background-color: #036c5f;
                }
                QPushButton:pressed {
-                   background-color: #0D47A1;
+                   background-color: #025043;
                }
            """)
         layout.addWidget(buttons)
@@ -103,6 +103,10 @@ class HelpDialog(QDialog):
             color: #E53935;  /* Red for important notes */
         }
         
+        li p b {
+            color: #E53935;
+        }
+        
         /* Keyboard shortcuts */
         li b {
             color: #00796B;  /* Teal for shortcuts */
@@ -123,14 +127,15 @@ class HelpDialog(QDialog):
 
         <h4>Connection Management</h4>
         <ul>
-            <li><b>Manage Connections:</b> Click the gear icon or use Ctrl+M to manage tenant connections.</li>
-            <li><b>Connect to Tenant:</b> Click the connect icon or use Ctrl+T to connect to a saved tenant.</li>
-            <li><b>Retrieve Rules:</b> Once connected, use the download icon to retrieve adjustment rules.</li>
+            <li><b>Manage:</b> Click the Manage button or use Ctrl+M to open the manage tenant connections dialog to create, edit or delete tenant details.</li>
+            <li><b>Connect to Tenant:</b> Use the dropdown that say "Select connection" to select a saved tenant or Ctrl+T select a tenant.</li>
+            <li><b>Get Rules:</b> Once connected, use the Get Rules button to retrieve all adjustment rules from the tenant.</li>
         </ul>
 
         <h4>Table Operations</h4>
         <ul>
             <li><b>Search:</b> Use the search bar to filter rules in real-time.</li>
+            <p><b>Note: Search will look through all adjustment rules loaded and not only the one selected in the Rules selector</b></p>
             <li><b>Filter:</b> Use the filter drop down box to only filter the rules and only see specific rules in real-time.</li>
             <li><b>Edit Cells:</b> Double-click any cell to modify its content or start typing while a cell is selected.</li>
             <li><b>Copy/Paste:</b> Use Ctrl+C and Ctrl+V or right-click menu for clipboard operations.</li>
@@ -139,7 +144,7 @@ class HelpDialog(QDialog):
 
         <h4>Updates and Modifications</h4>
         <ul>
-            <li><b>Manual Upload:</b>Use the JSON button to export a file with individual folders of each rule.</li>
+            <li><b>Manual Upload:</b>Use the JSON button to export a file with individual folders of each rule. Users can select which rule to upload or upload all rules.</li>
             <li><b>Update via API:</b>Use the update icon to send changes to the tenant via API. When updating, it preserves all unmodified triggers and only updates the modified triggers</li>
         </ul>
 

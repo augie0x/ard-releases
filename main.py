@@ -10,7 +10,7 @@ import requests
 from PyQt5.QtCore import QSettings, QSize, QThread, pyqtSignal, QTimer, Qt, QSharedMemory
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox, \
-    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox, QProgressDialog
+    QAction, QHBoxLayout, QLabel, QLineEdit, QFrame, QComboBox, QProgressDialog, QToolButton
 from qt_material import apply_stylesheet
 
 from src.about_dialog import AboutDialog
@@ -72,10 +72,14 @@ class MainWindow(QMainWindow):
             os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
             os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
 
-        self.appKey = 'AdjustmentRuleUpdater_1_1_Mutex'
-        self.memory = QSharedMemory(self.appKey)
-        if not self.memory.create(1):
-            sys.exit(0)
+        #self.appKey = 'AdjustmentRuleUpdater_1_1_Mutex'
+        #self.memory = QSharedMemory(self.appKey)
+
+        #if self.memory.attach():
+            #self.memory.detach()
+
+        #if not self.memory.create(1):
+            #sys.exit(0)
 
         # Setup main window
         self.setWindowTitle(f"{__app_name__} v{__version__}")
@@ -101,64 +105,75 @@ class MainWindow(QMainWindow):
 
         # Left side buttons group
         left_buttons_layout = QHBoxLayout()
+        left_buttons_layout.setSpacing(12)
+        left_buttons_layout.setContentsMargins(8, 4, 8, 4)
+
+        # Connection selector
+        self.connection_selector = QComboBox()
+        self.connection_selector.setFixedWidth(250)
+        self.connection_selector.setMinimumHeight(32)
+        self.connection_selector.setToolTip("Select a tenant")
+        self.connection_selector.currentIndexChanged.connect(self.on_connection_changed)
+        left_buttons_layout.addWidget(self.connection_selector)
+
+        self.populate_connection_selector()
 
         # Load JSON Button
-        self.load_button = QPushButton()
+        self.load_button = QToolButton()
         self.load_button.setIcon(QIcon(get_resource_path("resources/images/open.png")))
-        self.load_button.setIconSize(QSize(24, 24))
+        self.load_button.setIconSize(QSize(32, 32))
+        self.load_button.setText("Load JSON")
         self.load_button.setToolTip("Load Adjustment Rule JSON")
         self.load_button.clicked.connect(self.load_json_file)
-        self.load_button.setFixedSize(40, 40)
-        self.load_button.setFlat(True)
+        self.load_button.setFixedSize(80, 80)
+        self.load_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         left_buttons_layout.addWidget(self.load_button)
 
         # Export CSV Button
-        self.export_button = QPushButton()
+        self.export_button = QToolButton()
         self.export_button.setIcon(QIcon(get_resource_path("resources/images/csv.png")))
-        self.export_button.setIconSize(QSize(24, 24))
+        self.export_button.setIconSize(QSize(32, 32))
+        self.export_button.setText("Export CSV")
         self.export_button.setToolTip("Export to CSV")
         self.export_button.clicked.connect(self.export_to_csv)
-        self.export_button.setFixedSize(40, 40)
-        self.export_button.setFlat(True)
+        self.export_button.setFixedSize(80, 80)
+        self.export_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         left_buttons_layout.addWidget(self.export_button)
-
-        # Add a separator line
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        left_buttons_layout.addWidget(separator)
 
         # API Connection buttons group
 
         # Manage Connections button
-        self.manage_connections_btn = QPushButton()
+        self.manage_connections_btn = QToolButton()
         self.manage_connections_btn.setIcon(QIcon(get_resource_path("resources/images/manage.png")))
-        self.manage_connections_btn.setIconSize(QSize(24, 24))
-        self.manage_connections_btn.setToolTip("Manage Connections")
+        self.manage_connections_btn.setIconSize(QSize(32, 32))
+        self.manage_connections_btn.setText("Manage Tenants")
+        self.manage_connections_btn.setToolTip("Create, update or delete connections")
         self.manage_connections_btn.clicked.connect(self.show_connection_manager)
-        self.manage_connections_btn.setFixedSize(40, 40)
-        self.manage_connections_btn.setFlat(True)
+        self.manage_connections_btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.manage_connections_btn.setFixedSize(110, 80)
         left_buttons_layout.addWidget(self.manage_connections_btn)
 
         # Connect to Tenant button
-        self.connect_btn = QPushButton()
+        """self.connect_btn = QToolButton()
         self.connect_btn.setIcon(QIcon(get_resource_path("resources/images/connect.png")))
-        self.connect_btn.setIconSize(QSize(24, 24))
-        self.connect_btn.setToolTip("Connect to Tenant")
+        self.connect_btn.setIconSize(QSize(32, 32))
+        self.connect_btn.setText("Connect")
+        self.connect_btn.setToolTip("Connect to a tenant")
         self.connect_btn.clicked.connect(self.show_connection_selector)
-        self.connect_btn.setFixedSize(40, 40)
-        self.connect_btn.setFlat(True)
-        left_buttons_layout.addWidget(self.connect_btn)
+        self.connect_btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.connect_btn.setFixedSize(80, 80)
+        left_buttons_layout.addWidget(self.connect_btn)"""
 
         # Fetch API Button
-        self.fetch_api_button = QPushButton()
+        self.fetch_api_button = QToolButton()
         self.fetch_api_button.setIcon(QIcon(get_resource_path("resources/images/get.png")))
-        self.fetch_api_button.setIconSize(QSize(24, 24))
+        self.fetch_api_button.setIconSize(QSize(32, 32))
+        self.fetch_api_button.setText("Get Rules")
         self.fetch_api_button.setToolTip("Retrieve Adjustment Rules")
         self.fetch_api_button.clicked.connect(self.get_adjustment_rules_api)
+        self.fetch_api_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.fetch_api_button.setEnabled(False)
-        self.fetch_api_button.setFixedSize(40, 40)
-        self.fetch_api_button.setFlat(True)
+        self.fetch_api_button.setFixedSize(80, 80)
         left_buttons_layout.addWidget(self.fetch_api_button)
 
         separator = QFrame()
@@ -167,24 +182,26 @@ class MainWindow(QMainWindow):
         left_buttons_layout.addWidget(separator)
 
         # Update Rules Button
-        self.update_rules_button = QPushButton()
+        self.update_rules_button = QToolButton()
         self.update_rules_button.setIcon(QIcon(get_resource_path("resources/images/update.png")))
-        self.update_rules_button.setIconSize(QSize(24, 24))
+        self.update_rules_button.setIconSize(QSize(32, 32))
         self.update_rules_button.setToolTip("Update Adjustment Rules")
+        self.update_rules_button.setText("Update Rules")
         self.update_rules_button.clicked.connect(self.update_adjustment_rules)
-        self.update_rules_button.setFixedSize(40, 40)
-        self.update_rules_button.setFlat(True)
+        self.update_rules_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.update_rules_button.setFixedSize(100, 80)
         self.update_rules_button.setEnabled(False)
         left_buttons_layout.addWidget(self.update_rules_button)
 
         # Export JSON Button
-        self.export_json_button = QPushButton()
+        self.export_json_button = QToolButton()
         self.export_json_button.setIcon(QIcon(get_resource_path("resources/images/json.png")))
-        self.export_json_button.setIconSize(QSize(24, 24))
-        self.export_json_button.setToolTip("Export as JSON")
+        self.export_json_button.setIconSize(QSize(32, 32))
+        self.export_json_button.setText("Export to JSON")
+        self.export_json_button.setToolTip("Export individual adjustment rule JSON files")
         self.export_json_button.clicked.connect(self.export_to_json)
-        self.export_json_button.setFixedSize(40, 40)
-        self.export_json_button.setFlat(True)
+        self.export_json_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.export_json_button.setFixedSize(100, 80)
         self.export_json_button.setEnabled(False)
         left_buttons_layout.addWidget(self.export_json_button)
 
@@ -196,28 +213,35 @@ class MainWindow(QMainWindow):
 
         # Rules filter combo box
         self.rule_filter_combo = QComboBox()
-        self.rule_filter_combo.setPlaceholderText("Select a rule...")
-        self.rule_filter_combo.setFixedWidth(350)
+        self.rule_filter_combo.setPlaceholderText("Select rule...")
+        self.rule_filter_combo.setFixedWidth(280)
+        self.rule_filter_combo.setMinimumHeight(32)
         self.rule_filter_combo.currentIndexChanged.connect(self.filter_by_rule)
         top_layout.addWidget(self.rule_filter_combo)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        top_layout.addWidget(separator)
-
         # Search Layout (right side)
         search_layout = QHBoxLayout()
+        search_layout.setSpacing(6)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+
         search_label = QLabel("Search:")
+        search_label.setFixedWidth(50)
         search_layout.addWidget(search_label)
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Enter search term...")
+        self.search_bar.setFixedWidth(250)
+        self.search_bar.setMinimumHeight(32)
         self.search_bar.textChanged.connect(self.search_table)
         search_layout.addWidget(self.search_bar)
 
+        search_container = QWidget()
+        search_container.setObjectName("searchContainer")
+        search_container.setLayout(search_layout)
+        search_container.setFixedWidth(306)
+
         # Add search layout to top layout
-        top_layout.addLayout(search_layout)
+        top_layout.addWidget(search_container)
 
         self.recent_files_manager = RecentFilesManager(max_files=10)
 
@@ -243,6 +267,22 @@ class MainWindow(QMainWindow):
         self.update_timer.start(3600000)
 
         QTimer.singleShot(5000, self.check_for_updates)
+
+    def populate_connection_selector(self):
+        self.connection_selector.clear()
+        self.connection_selector.addItem("Select connection...")
+
+        connections = self.connection_manager.get_all_connections()
+        if connections:
+            for connection_name in sorted(connections.keys()):
+                self.connection_selector.addItem(connection_name)
+
+    def on_connection_changed(self, index):
+        if index <= 0:
+            return
+        connection_name = self.connection_selector.currentText()
+        self.authenticate_with_saved_connection(connection_name)
+
 
     def check_for_updates(self):
         update_available, update_info = self.version_manager.check_for_updates()
@@ -352,6 +392,7 @@ class MainWindow(QMainWindow):
         """Show the connection manager dialog"""
         dialog = ConnectionDialog(self)
         dialog.exec_()
+        self.populate_connection_selector()
 
     def show_connection_selector(self):
         """Show the connection selector dialog"""
@@ -379,6 +420,7 @@ class MainWindow(QMainWindow):
         self.fetch_api_button.setEnabled(False)
         self.update_rules_button.setEnabled(False)
         self.export_json_button.setEnabled(False)
+        self.connection_selector.setCurrentIndex(0)
         QMessageBox.information(self, "Disconnected", "Successfully disconnected from tenant.")
 
     def update_connection_status(self, connected=False, tenant_name=None):
@@ -386,12 +428,21 @@ class MainWindow(QMainWindow):
         # print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
         self.fetch_api_button.setEnabled(connected)
         self.update_rules_button.setEnabled(connected)
+        if connected and tenant_name:
+            # Find and select the connected tenant in the combo box
+            index = self.connection_selector.findText(tenant_name)
+            if index >= 0:
+                self.connection_selector.setCurrentIndex(index)
+            self.statusBar.showMessage(f"Connected to: {tenant_name}")
+        else:
+            self.connection_selector.setCurrentIndex(0)
+            self.statusBar.showMessage("Not connected")
 
-        if hasattr(self, 'statusBar'):
+        """if hasattr(self, 'statusBar'):
             if connected and tenant_name:
                 self.statusBar.showMessage(f"Connected to: {tenant_name}")
             else:
-                self.statusBar.showMessage("Not connected")
+                self.statusBar.showMessage("Not connected")"""
 
     def authenticate_with_saved_connection(self, connection_name):
         """Handle authentication when switching connections"""
@@ -449,7 +500,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Success", "Authentication successful.")
 
     def load_saved_tokens(self):
-        settings = QSettings('YourCompany', 'AdjustmentRuleApp')
+        settings = QSettings(__app_name__, "adjustment_rules_tenants")
         self.auth_url = settings.value('auth_url', type=str)
         self.username = settings.value('username', type=str)
         self.password = settings.value('password', type=str)
@@ -926,8 +977,200 @@ def main():
     # QT_Material Design stylesheet
     apply_stylesheet(app, theme='light_teal_500.xml')
 
+    app.setStyleSheet(app.styleSheet() + """
+        QMainWindow,
+        QMainWindow > QWidget,  
+        QMainWindow QWidget > QVBoxLayout > QWidget {  
+            background-color: #ffffff;
+        }
+
+        QMenuBar {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 2px;
+        }
+
+        QMenuBar::item {
+            padding: 5px 10px;
+            margin: 1px;
+            border-radius: 6px;
+        }
+
+        QMenuBar::item:selected {
+            background-color: #009688;
+            color: white;
+            border-radius: 6px;
+        }
+
+        QToolBar {
+            min-height: 45px;
+            max-height: 45px;    
+            height: 45px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            spacing: 1px;
+            padding: 5px;
+        }
+
+        QToolBar > * {
+            background-color: #ffffff;
+        }
+
+        QToolButton {
+            border: none;
+            margin: 2px;
+            height: 48px;
+            width: 48px;
+            background-color: #ffffff;
+        }
+
+        QToolButton:hover {
+            background-color: #e0f2f1;
+            border: none;
+            border-radius: 4px;
+        }
+
+        QToolButton:pressed {
+            background-color: #b2dfdb;
+            border: none;
+            border-radius: 4px;
+        }
+
+        QComboBox {
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            padding: 5px 25px 5px 10px;
+            background: #ffffff;
+            height: 32px;
+        }
+
+        QComboBox:hover {
+            border-color: #009688;
+        }
+
+        QComboBox::drop-down {
+            border: 0px;
+            width: 20px;
+        }
+
+        QComboBox::down-arrow {
+            image: url(resources/images/dropdown.png);
+            width: 14px;
+            height: 14px;
+        }
+
+        QStatusBar {
+            background-color: #ffffff;
+            border-top: 1px solid #e0e0e0;
+        } 
+
+        QStatusBar QLabel {
+            padding: 3px;
+        }
+
+        QMenu {
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            padding: 5px;
+        }
+
+        QMenu::item {
+            padding: 5px 10px 5px 10px;
+            border-radius: 4px;
+        }
+
+        QMenu::item:selected {
+            background-color: #009688;
+            color: white;
+        }
+
+        QTableView {
+            background-color: #ffffff;
+            alternate-background-color: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            gridline-color: #e0e0e0;
+            selection-background-color: rgba(178, 223, 219, 150);
+            selection-color: black;
+        }
+
+        QTableView::item:selected {
+            background-color: rgba(160, 216, 211, 150);
+            color: black;
+        }
+
+        QHeaderView {
+            background-color: #ffffff;
+        }
+
+        QHeaderView::section {
+            background-color: #ffffff;
+            padding: 5px;
+            border: none;
+            border-bottom: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        QLineEdit {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            height: 32px;
+            background: #ffffff;
+        }
+
+        QPushButton {
+            background-color: #008080;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 11pt;
+            min-width: 80px;
+        }
+
+        QPushButton:hover {
+            background-color: #036c5f;
+        }
+
+        QPushButton:pressed {
+            background-color: #025043;
+        }
+
+        QMessageBox {
+            background-color: #ffffff;
+        }
+
+        QMessageBox QLabel {
+            color: #424242;
+            font-size: 12pt;
+            margin: 10px 0;
+            padding: 10px;
+        }
+
+        QMessageBox QPushButton {
+            background-color: #008080;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            min-width: 80px;
+            font-size: 11pt;
+            margin: 5px;
+        }
+        
+        QWidget#searchContainer {
+            background-color: transparent;
+            border-radius: 4px;
+        }
+        
+    """)
+
     main_window = MainWindow()
     main_window.show()
+
+    app_icon = QIcon("resources/images/ard.png")
+    app.setWindowIcon(app_icon)
 
     sys.exit(app.exec())
 

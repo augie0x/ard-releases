@@ -1,9 +1,42 @@
 # table_view.py
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMenu, QAction, QApplication, QShortcut
+from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtGui import QColor, QKeySequence, QTextOption
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMenu, QAction, QApplication, QShortcut, \
+    QStyledItemDelegate, QStyle
 
+
+class WrapDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        painter.save()
+
+        text = index.data(Qt.DisplayRole) or ""
+
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(option.rect, option.palette.highlight())
+
+        available_width = option.rect.width()
+        metrics = option.fontMetrics
+
+        truncated = metrics.elidedText(text, Qt.ElideRight, available_width)
+        if truncated != text:
+            text_option = QTextOption()
+            text_option.setWrapMode(QTextOption.WordWrap)
+            painter.setPen(option.palette.text().color())
+            painter.drawText(QRectF(option.rect), text, text_option)
+        else:
+            painter.setPen(option.palette.text().color())
+            painter.drawText(option.rect, Qt.AlignVCenter | Qt.AlignLeft, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        text = index.data(Qt.DisplayRole) or ""
+        metrics = option.fontMetrics
+
+        available_width = option.rect.width() if option.rect.width() > 0 else 350
+        rect = metrics.boundingRect(0,0, available_width, 10000, Qt.TextWordWrap, text)
+        return rect.size()
 
 class TableView(QTableWidget):
     def __init__(self):
@@ -32,32 +65,33 @@ class TableView(QTableWidget):
 
     def setup_table(self):
         # Define columns, including separate columns for Bonus and Wage details
-        total_columns = 21
+        total_columns = 22
         self.setColumnCount(total_columns)
         headers = [
             "Rule ID",  # 0
             "Rule Name",  # 1
-            "Trigger Version",  # 2
-            "Adjustment Type",  # 3
-            "Version Number",  # 4
+            "Version Number",  # 2
+            "Effective Date",  # 3
+            "Adjustment Type",  # 4
             "Match Anywhere",  # 5
             "Job or Location",  # 6
-            "Effective Date",  # 7
-            "Labor Category Entries",  # 8
-            "Trigger Pay Codes",  # 9
+            "Labor Category Entries",  # 7
+            "Trigger Pay Codes",  # 8
             # Bonus Details
-            "Bonus Rate Amount",  # 10
-            "Bonus Hourly Rate",  # 11
-            "Once Per Day",  # 12
-            "Time Period",  # 13
-            "Job Code Type",  # 14
-            "Week Start",  # 15
+            "Bonus Rate Amount",  # 9
+            "Bonus Hourly Rate",  # 10 - New
+            "Max Amount",  # 11 - New
+            "Min Time",  # 12 - New
+            "Once Per Day",  # 13
+            "Time Period",  # 14
+            "Job Code Type",  # 15
+            "Week Start",  # 16
+            "Bonus Pay Code",  # 17
             # Wage Details
-            "Amount",  # 16
-            "Override If Primary Job Switch",  # 17
-            "Type",  # 18
-            "Use Highest Wage Switch",  # 19
-            "Bonus Pay Code"  # 20
+            "Amount",  # 18
+            "Type",  # 19
+            "Override If Primary Job Switch",  # 20
+            "Use Highest Wage Switch",  # 21
         ]
 
         # Verify the correct number of headers
@@ -81,10 +115,13 @@ class TableView(QTableWidget):
         header.setVisible(True)
         header.setStretchLastSection(True)
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        header.setSectionsMovable(True)
+        header.setSectionsMovable(False)
         header.setSectionsClickable(True)
-        header.setDefaultSectionSize(200)
+        header.setDefaultSectionSize(150)
         self.setWordWrap(True)
+
+        wrap_delegate = WrapDelegate(self)
+        self.setItemDelegateForColumn(8,wrap_delegate)
 
     def context_menu(self, position):
         """Open the context menu when right-clicking on the table"""
@@ -123,10 +160,10 @@ class TableView(QTableWidget):
             if item:
                 row, col = item.row(), item.column()
                 old_value = item.text()
-                self.undo_stack.append((row, col, old_value, "")) # Add the action to the undo stack
+                self.undo_stack.append((row, col, old_value, ""))
                 item.setText("") # Clear the content of the cell
-                self.modified_cells.add((row, col)) # Add the cell to modified cells set for tracking
-                item.setBackground(QColor("#e06666")) # Change the background color to indicate a change
+                self.modified_cells.add((row, col))
+                item.setBackground(QColor("#e06666"))
 
     def do_copy(self):
         """Copy selected cells to clipboard"""
@@ -301,6 +338,14 @@ class TableView(QTableWidget):
             return ""
         return ", ".join([pc.get('name', '') for pc in pay_codes])
 
+    def format_time_value(self, value):
+        """Formats numeric values to HH:MM format"""
+        if isinstance(value, (int, float)):
+            hours = int(value)
+            minutes = int((value - hours) * 60)
+            return f"{hours:02d}:{minutes:02d}"
+        return str(value)
+
     def display_triggers(self, triggers):
         """
         Populates the table with the list of triggers.
@@ -309,105 +354,75 @@ class TableView(QTableWidget):
         self.current_rules_data = triggers
 
         for row, trigger in enumerate(triggers):
-            # Initialize all cells in the row first
-
-            # Rule ID (column 0)
-            rule_id = trigger.get('ruleId', 'N/A')
-            self.setItem(row, 0, QTableWidgetItem(str(rule_id)))
-
-            # Rule Name (column 1)
-            rule_name = trigger.get('ruleName', 'Unknown Rule')
-            self.setItem(row, 1, QTableWidgetItem(str(rule_name)))
-
-            # Adjustment allocation information
+            # Get adjustment allocation info upfront
             adjustment_allocation = trigger.get("adjustmentAllocation", {}).get("adjustmentAllocation", {})
             adjustment_type = adjustment_allocation.get("adjustmentType", "Unknown").strip()
 
-            # Trigger Version
-            version_id = trigger.get('versionId', '')
-            version_num = trigger.get('versionNum', '')
-            version_text = f"{version_num}" if version_num else ''
-            self.setItem(row, 2, QTableWidgetItem(version_text))
+            # Basic fields
+            self.setItem(row, 0, QTableWidgetItem(str(trigger.get('ruleId', 'N/A'))))  # Rule ID
+            self.setItem(row, 1, QTableWidgetItem(str(trigger.get('ruleName', 'Unknown Rule'))))  # Rule Name
+            self.setItem(row, 2, QTableWidgetItem(str(trigger.get('versionNum', ''))))  # Version Number
+            self.setItem(row, 3, QTableWidgetItem(str(trigger.get('effectiveDate', ''))))  # Effective Date
+            self.setItem(row, 4, QTableWidgetItem(adjustment_type))  # Adjustment Type
+            self.setItem(row, 5, QTableWidgetItem(
+                str(self.__parse_boolean(trigger.get("matchAnywhere", False)))))  # Match Anywhere
 
-            # Adjustment Type (Shifted to index 3)
-            adjustment_type_item = QTableWidgetItem(adjustment_type)
-            self.setItem(row, 3, adjustment_type_item)
+            # Job/Location and Categories
+            job_location = trigger.get("jobOrLocation", {})
+            self.setItem(row, 6, QTableWidgetItem(job_location.get('qualifier', '')))  # Job or Location
+            self.setItem(row, 7,
+                         QTableWidgetItem(str(trigger.get("laborCategoryEntries", ''))))  # Labor Category Entries
 
-            # Version Number (Shifted to index 4)
-            self.setItem(row, 4, QTableWidgetItem(str(version_num) if version_num else ''))
-
-            # Match Anywhere (Shifted to index 5)
-            match_anywhere = self.__parse_boolean(trigger.get("matchAnywhere", False))
-            self.setItem(row, 5, QTableWidgetItem(str(match_anywhere)))
-
-            # Job or Location (Shifted to index 6)
-            job_or_location = trigger.get("jobOrLocation", {})
-            job_or_location_text = job_or_location.get('qualifier', '') if job_or_location else ''
-            self.setItem(row, 6, QTableWidgetItem(job_or_location_text))
-
-            # Effective Date (Shifted to index 7)
-            effective_date = trigger.get("jobOrLocationEffectiveDate", '')
-            self.setItem(row, 7, QTableWidgetItem(effective_date))
-
-            # Labor Category Entries (Shifted to index 8)
-            labor_category_entries = trigger.get("laborCategoryEntries", '')
-            self.setItem(row, 8, QTableWidgetItem(str(labor_category_entries)))
-
-            # Pay Codes (Shifted to index 9)
+            # Pay Codes
             pay_codes = trigger.get("payCodes", [])
-            pay_codes_str = self.format_pay_codes(pay_codes)
-            self.setItem(row, 9, QTableWidgetItem(pay_codes_str))
-
-            adjustment_allocation = trigger.get("adjustmentAllocation", {}).get("adjustmentAllocation", {})
-            adjustment_type = adjustment_allocation.get("adjustmentType", "Unknown").strip()
-
-            bonus_pay_code_column = self.columnCount() - 1
+            self.setItem(row, 8, QTableWidgetItem(self.format_pay_codes(pay_codes)))  # Trigger Pay Codes
 
             if adjustment_type == "Bonus":
-                # First try to get the bonus pay code from our extracted data
-                bonus_pay_code = trigger.get('bonusPayCode', {})
+                # Bonus Rate Amount formatting
+                bonus_rate = adjustment_allocation.get("bonusRateAmount", '')
+                self.setItem(row, 9, QTableWidgetItem(self.format_time_value(bonus_rate)))  # Bonus Rate Amount
 
-                # Get the pay code name
-                bonus_pay_code_name = bonus_pay_code.get('name', '')
+                # Other Bonus fields
+                self.setItem(row, 10, QTableWidgetItem(
+                    str(adjustment_allocation.get("bonusRateHourlyRate", ''))))  # Bonus Hourly Rate
+                self.setItem(row, 11, QTableWidgetItem(
+                    str(adjustment_allocation.get("timeAmountMaximumAmount", ''))))  # Max Amount
+                self.setItem(row, 12, QTableWidgetItem(
+                    self.format_time_value(adjustment_allocation.get("timeAmountMinimumTime", ''))))  # Min Time
+                self.setItem(row, 13,
+                             QTableWidgetItem(str(adjustment_allocation.get("oncePerDay", False))))  # Once Per Day
+                self.setItem(row, 14, QTableWidgetItem(str(adjustment_allocation.get("timePeriod", ''))))  # Time Period
+                self.setItem(row, 15,
+                             QTableWidgetItem(str(adjustment_allocation.get("jobCodeType", ''))))  # Job Code Type
+                self.setItem(row, 16, QTableWidgetItem(str(adjustment_allocation.get("weekStart", ''))))  # Week Start
 
-                # Create the table item
-                bonus_pay_code_item = QTableWidgetItem(bonus_pay_code_name)
-                self.setItem(row, bonus_pay_code_column, bonus_pay_code_item)
-            else:
-                self.setItem(row, bonus_pay_code_column, QTableWidgetItem("N/A"))
+                # Bonus Pay Code
+                bonus_pay_code = adjustment_allocation.get("payCode", {})
+                self.setItem(row, 17, QTableWidgetItem(bonus_pay_code.get('name', '')))  # Bonus Pay Code
 
-            # Adjustment Allocation Details (starting from index 10)
-            if adjustment_type == "Bonus":
-                # Populate Bonus-specific columns (indices 10-15)
-                self.setItem(row, 10, QTableWidgetItem(str(adjustment_allocation.get("bonusRateAmount", ''))))
-                self.setItem(row, 11, QTableWidgetItem(str(adjustment_allocation.get("bonusRateHourlyRate", ''))))
-                self.setItem(row, 12, QTableWidgetItem(str(adjustment_allocation.get("oncePerDay", False))))
-                self.setItem(row, 13, QTableWidgetItem(str(adjustment_allocation.get("timePeriod", ''))))
-                self.setItem(row, 14, QTableWidgetItem(str(adjustment_allocation.get("jobCodeType", ''))))
-                self.setItem(row, 15, QTableWidgetItem(str(adjustment_allocation.get("weekStart", ''))))
-
-                # Clear Wage-specific columns (indices 16-19)
-                for col in range(16, 20):
+                # Clear Wage fields
+                for col in range(18, 22):
                     self.setItem(row, col, QTableWidgetItem("N/A"))
 
             elif adjustment_type == "Wage":
-                # Clear Bonus-specific columns (indices 10-15)
-                for col in range(10, 16):
+                # Clear Bonus fields
+                for col in range(9, 18):
                     self.setItem(row, col, QTableWidgetItem("N/A"))
 
-                # Populate Wage-specific columns (indices 16-19)
-                self.setItem(row, 16, QTableWidgetItem(str(adjustment_allocation.get("amount", ''))))
-                self.setItem(row, 17,
-                             QTableWidgetItem(str(adjustment_allocation.get("overrideIfPrimaryJobSwitch", False))))
-                self.setItem(row, 18, QTableWidgetItem(str(adjustment_allocation.get("type", ''))))
-                self.setItem(row, 19, QTableWidgetItem(str(adjustment_allocation.get("useHighestWageSwitch", False))))
+                # Wage fields
+                self.setItem(row, 18, QTableWidgetItem(str(adjustment_allocation.get("amount", ''))))  # Amount
+                self.setItem(row, 19, QTableWidgetItem(str(adjustment_allocation.get("type", ''))))  # Type
+                self.setItem(row, 20, QTableWidgetItem(str(adjustment_allocation.get("overrideIfPrimaryJobSwitch",
+                                                                                     False))))  # Override If Primary Job Switch
+                self.setItem(row, 21, QTableWidgetItem(
+                    str(adjustment_allocation.get("useHighestWageSwitch", False))))  # Use Highest Wage Switch
 
             else:
-                # Clear all specific columns for unknown types (indices 10-19)
-                for col in range(10, 20):
+                # Clear all specific columns for unknown types
+                for col in range(9, 22):
                     self.setItem(row, col, QTableWidgetItem("N/A"))
 
-            # Apply color coding after all items are created
+            # Apply color coding
             color = (
                 QColor("#e0f7fa") if adjustment_type == "Bonus"
                 else QColor("#ffe0b2") if adjustment_type == "Wage"
@@ -426,15 +441,17 @@ class TableView(QTableWidget):
         min_widths = {
             1: 250,  # Rule Name
             6: 200,  # Job or Location
-            9: 200,  # Pay Codes
-            17: 150,  # Override If Primary Job Switch
-            19: 150,  # Use Highest Wage Switch
-            20: 200  # Bonus Pay Code
+            8: 200,  # Trigger Pay Codes
+            17: 200,  # Bonus Pay Code
+            20: 150,  # Override If Primary Job Switch
+            21: 150  # Use Highest Wage Switch
         }
 
         for col, width in min_widths.items():
             if self.columnWidth(col) < width:
                 self.setColumnWidth(col, width)
+
+        self.resizeRowsToContents()
 
     def on_item_double_clicked(self, item):
         """Store the original value when editing starts"""
@@ -511,12 +528,28 @@ class TableView(QTableWidget):
 
             # Only add if the value is meaningful
             if current_value and current_value.lower() != 'n/a':
-                modifications_by_rule[rule_id].append({
-                    'column': header,
-                    'value': current_value,
-                    'row': row
-                })
+                # Get the adjustment type for this row
+                adjustment_type_item = self.item(row, 4)  # Adjustment Type is now at column 4
+                adjustment_type = adjustment_type_item.text() if adjustment_type_item else ""
 
+                # For Bonus type, handle time format fields
+                if adjustment_type == "Bonus" and header in ["Bonus Rate Amount", "Min Time"]:
+                    if ':' in current_value:  # If in HH:MM format
+                        # Keep the time format as is since it's already in the correct format
+                        modifications_by_rule[rule_id].append({
+                            'column': header,
+                            'value': current_value,
+                            'row': row
+                        })
+                else:
+                    # Handle all other fields normally
+                    modifications_by_rule[rule_id].append({
+                        'column': header,
+                        'value': current_value,
+                        'row': row
+                    })
+
+        # Final modified data list
         for rule_id, modifications in modifications_by_rule.items():
             if modifications:
                 row =modifications[0]['row']

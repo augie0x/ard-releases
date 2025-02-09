@@ -10,9 +10,10 @@ from .connection_manager import ConnectionManager
 class ConnectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.connection_list = None
         self.setWindowTitle("Connection Manager")
         self.setModal(True)
-        self.resize(600, 400)
+        self.resize(660, 400)
 
         self.connection_manager = ConnectionManager()
         self.setup_ui()
@@ -23,21 +24,49 @@ class ConnectionDialog(QDialog):
 
         # Left side - Connection List
         left_layout = QVBoxLayout()
+        connections_label = QLabel("Saved Connections:")
+        connections_label.setContentsMargins(0, 0, 0, 5)
 
         # Connection list
         self.connection_list = QListWidget()
-        self.connection_list.itemClicked.connect(self.load_connection)  # type: ignore
+        self.connection_list.itemClicked.connect(self.load_connection)
         self.connection_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.connection_list.customContextMenuRequested.connect(self.show_context_menu)  # type: ignore
-        left_layout.addWidget(QLabel("Saved Connections:"))
+        self.connection_list.customContextMenuRequested.connect(self.show_context_menu)
+        self.connection_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border-radius: 2px;
+            }
+            QListWidget::item:hover {
+                background-color: #e0f2f1;
+            }            
+            QListWidget::item:selected {
+                background-color: #e0f2f1;
+                color: white !important;
+            }
+            QListWidget::item:selected:active {
+                background-color: #e0f2f1;
+                color: white !important;
+            }
+            QListWidget::item:selected:!active {
+                background-color: #009688;
+                color: white !important;
+            }
+        """)
+
+        left_layout.addWidget(connections_label)
         left_layout.addWidget(self.connection_list)
 
         # Buttons for list management
         btn_layout = QHBoxLayout()
         self.add_btn = QPushButton("Add New")
-        self.add_btn.clicked.connect(self.clear_form)  # type: ignore
+        self.add_btn.clicked.connect(self.clear_form)
         self.delete_btn = QPushButton("Delete")
-        self.delete_btn.clicked.connect(self.delete_connection)  # type: ignore
+        self.delete_btn.clicked.connect(self.delete_connection)
         btn_layout.addWidget(self.add_btn)
         btn_layout.addWidget(self.delete_btn)
         left_layout.addLayout(btn_layout)
@@ -45,10 +74,12 @@ class ConnectionDialog(QDialog):
         # Right side - Connection Details
         right_layout = QVBoxLayout()
         form_layout = QFormLayout()
+        form_layout.setSpacing(5)
+        form_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
+        right_layout.addSpacing(connections_label.sizeHint().height())
 
         # Connection name field
         self.connection_name = QLineEdit()
-        form_layout.addRow("Connection Name:", self.connection_name)
 
         # Input fields
         self.hostname_input = QLineEdit()
@@ -65,6 +96,36 @@ class ConnectionDialog(QDialog):
         self.password_input.setPlaceholderText("Password")
         self.password_input.setEchoMode(QLineEdit.Password)
 
+        line_edits = [
+            self.connection_name,
+            self.hostname_input,
+            self.username_input,
+            self.client_id_input,
+            self.client_secret_input,
+            self.password_input
+        ]
+
+        line_edit_style = """
+            QLineEdit {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                padding: 8px 4px;
+                background-color: white;
+                height: 25px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #009688;
+                outline: none;
+            }
+            QLineEdit:hover {
+                border: 1px solid #009688;
+            }
+        """
+
+        for line_edit in line_edits:
+            line_edit.setStyleSheet(line_edit_style)
+
+        form_layout.addRow("Connection Name:", self.connection_name)
         form_layout.addRow("Tenant URL:", self.hostname_input)
         form_layout.addRow("Username:", self.username_input)
         form_layout.addRow("Password:", self.password_input)
@@ -78,8 +139,8 @@ class ConnectionDialog(QDialog):
             QDialogButtonBox.Save | QDialogButtonBox.Close
         )
         self.save_button = buttons.button(QDialogButtonBox.Save)
-        self.save_button.clicked.connect(self.save_connection)  # type: ignore
-        buttons.rejected.connect(self.reject)  # type: ignore
+        self.save_button.clicked.connect(self.save_connection)
+        buttons.rejected.connect(self.reject)
         right_layout.addWidget(buttons)
 
         # Add layouts to main layout

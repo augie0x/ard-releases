@@ -1,10 +1,12 @@
 import json
 
 from PyQt5.QtCore import QSettings
+from src.version import __app_name__
 
 class ConnectionManager:
     def __init__(self):
-        self.settings = QSettings("Adjustment Rules Demystifier", "UKG")
+        self.settings = QSettings(__app_name__, "adjustment_rules_tenants")
+        #print(f"Settings file location: {self.settings.fileName()}")
 
     def save_connection(self, connection_name, credentials):
         connections = self.get_all_connections()

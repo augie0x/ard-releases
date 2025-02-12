@@ -1,9 +1,15 @@
 # table_view.py
+import json
 
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QColor, QKeySequence, QTextOption
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMenu, QAction, QApplication, QShortcut, \
     QStyledItemDelegate, QStyle
+import logging
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.FileHandler('app.log', mode='w')])
 
 
 class WrapDelegate(QStyledItemDelegate):
@@ -461,7 +467,7 @@ class TableView(QTableWidget):
         """Store the original value when editing starts"""
         key = (item.row(), item.column())
         self.original_values[key] = item.text()
-        #print(f"Stored original value: {key} = {item.text()}")
+        #logging.debug(f"Stored original value: {key} = {item.text()}")
 
     def on_item_changed(self, item):
         """Handle cell value changes"""
@@ -495,74 +501,61 @@ class TableView(QTableWidget):
                 if key not in self.original_values:
                     self.original_values[key] = item.text()
 
-    def get_modified_row_data(self):
-        modified_data = []
-        processed_rules = set()
+    # In table_view.py, modify get_modified_row_data method
 
-        modifications_by_rule = {}
+    def get_modified_row_data(self):
+        """Gets modified row data from the table"""
+        modified_data = []
+
+        logging.info("\n=== Modified Cells ===")
+        logging.info(f"Total modified cells: {len(self.modified_cells)}")
 
         for (row, col) in self.modified_cells:
-            # Get the Rule ID from the first column
-            item = self.item(row, 0)
-            if not item:
-                continue
-
-            rule_id = item.text()
-
-            if rule_id not in modifications_by_rule:
-                modifications_by_rule[rule_id] = []
-
-            # Get the header text for this column using horizontalHeaderItem
+            # Get the header for the modified column
             header_item = self.horizontalHeaderItem(col)
             if not header_item:
+                logging.warning(f"Warning: No header found for column {col}")
                 continue
-
             header = header_item.text()
 
-            # Get the current value
-            current_item = self.item(row, col)
-            if not current_item:
+            # Get Rule ID from first column
+            rule_id_item = self.item(row, 0)
+            if not rule_id_item:
+                logging.warning(f"Warning: No Rule ID found for row {row}")
+                continue
+            rule_id = rule_id_item.text()
+
+            # Get version number - it's in column 2 (0-based indexing)
+            version_num_item = self.item(row, 2)
+            if not version_num_item:
+                logging.warning(f"Warning: No Version Number found for row {row}")
+                continue
+            version_num = version_num_item.text()
+
+            # Get the modified value
+            modified_item = self.item(row, col)
+            if not modified_item:
+                logging.warning(f"Warning: No item found at row {row}, col {col}")
+                continue
+            modified_value = modified_item.text()
+
+            # Skip N/A values
+            if modified_value.upper() == 'N/A':
+                logging.info(f"Skipping N/A value for Rule {rule_id}, {header}")
                 continue
 
-            current_value = current_item.text()
+            logging.debug(f"Processing modification - Rule: {rule_id}, Version: {version_num}, {header}: {modified_value}")
 
-            # Only add if the value is meaningful
-            if current_value and current_value.lower() != 'n/a':
-                # Get the adjustment type for this row
-                adjustment_type_item = self.item(row, 4)  # Adjustment Type is now at column 4
-                adjustment_type = adjustment_type_item.text() if adjustment_type_item else ""
+            # Create rule data with correct fields and version number
+            rule_data = {'Rule ID': rule_id, 'Rule Name': self.item(row, 1).text(), 'Version Number': version_num,
+                         'Effective Date': self.item(row, 3).text(), 'Adjustment Type': self.item(row, 4).text(),
+                         header: modified_value}
 
-                # For Bonus type, handle time format fields
-                if adjustment_type == "Bonus" and header in ["Bonus Rate Amount", "Min Time"]:
-                    if ':' in current_value:  # If in HH:MM format
-                        # Keep the time format as is since it's already in the correct format
-                        modifications_by_rule[rule_id].append({
-                            'column': header,
-                            'value': current_value,
-                            'row': row
-                        })
-                else:
-                    # Handle all other fields normally
-                    modifications_by_rule[rule_id].append({
-                        'column': header,
-                        'value': current_value,
-                        'row': row
-                    })
+            # Add the modified field
 
-        # Final modified data list
-        for rule_id, modifications in modifications_by_rule.items():
-            if modifications:
-                row =modifications[0]['row']
-                rule_data = {
-                    'Rule ID': rule_id,
-                    'Rule Name': self.item(row,1).text(),
-                    'Adjustment Type': self.item(row, 3).text(),
-                    'Version Number': self.item(row, 4).text()
-                }
+            logging.info("\n=== Rule Data Being Added ===")
+            #logging.debug(json.dumps(rule_data, indent=2))
 
-                for mod in modifications:
-                    rule_data[mod['column']] = mod['value']
-
-                modified_data.append(rule_data)
+            modified_data.append(rule_data)
 
         return modified_data

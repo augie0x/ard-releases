@@ -58,7 +58,7 @@ class VersionManager:
                 for installer in installer_files[1:]:
                     installer.unlink()
         except Exception as e:
-            print(f"Error cleaning up old installers: {str(e)}")
+            logging.error(f"Error cleaning up old installers: {str(e)}")
 
     def check_for_updates(self):
         """
@@ -102,11 +102,11 @@ class VersionManager:
                 return False, None
 
         except requests.exceptions.RequestException as e:
-            print(f"Network error checking for updates: {str(e)}")
+            logging.error(f"Network error checking for updates: {str(e)}")
             return False, None
 
         except Exception as e:
-            print(f"Error checking for updates: {str(e)}")
+            logging.error(f"Error checking for updates: {str(e)}")
             return False, None
 
         return False, None
@@ -144,7 +144,7 @@ class VersionManager:
             return str(installer_path)
 
         except Exception as e:
-            print(f"Error downloading update: {str(e)}")
+            logging.error(f"Error downloading update: {str(e)}")
             return None
 
     def install_update(self, installer_path):
@@ -177,11 +177,5 @@ class VersionManager:
             return True
 
         except Exception as e:
-            print(f"Error installing update: {str(e)}")
+            logging.error(f"Error installing update: {str(e)}")
             return False
-
-        logging.basicConfig(
-            filename='app.log',
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )

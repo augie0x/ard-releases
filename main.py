@@ -1,6 +1,7 @@
 # main.py
 import csv
 import json
+import logging
 import os
 import sys
 import zipfile
@@ -28,6 +29,10 @@ from src.utils import SettingsManager
 from src.utils import get_resource_path
 from src.version_manager import VersionManager
 from src.version import __app_name__, __version__
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.StreamHandler()])
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -425,7 +430,7 @@ class MainWindow(QMainWindow):
 
     def update_connection_status(self, connected=False, tenant_name=None):
         """Update UI elements based on connection status"""
-        # print(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
+        # logging.info(f"Updating connection status: connected={connected}, tenant={tenant_name}")  # Debug print
         self.fetch_api_button.setEnabled(connected)
         self.update_rules_button.setEnabled(connected)
         if connected and tenant_name:
@@ -579,7 +584,7 @@ class MainWindow(QMainWindow):
                 data = DataLoader.load_json(file_name)
                 if data:
                     triggers = DataLoader.extract_triggers(data)
-                # print(f"Number of triggers found: {len(triggers)}")
+                # logging.debug(f"Number of triggers found: {len(triggers)}")
 
                 if triggers:
                     self.table_view.display_triggers(triggers)
@@ -748,11 +753,11 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            #print("Getting modified rows")
+            logging.info("\n=== Starting Update Process ===")
             modified_data = self.table_view.get_modified_row_data()
 
             if not modified_data:
-                print("No modifications detected")
+                logging.info("No modifications detected")
                 QMessageBox.information(self, "No Changes", "No modifications detected.")
                 return
 
@@ -760,34 +765,44 @@ class MainWindow(QMainWindow):
             for rule_data in modified_data:
                 rule_id = rule_data.get('Rule ID')
                 if not rule_id:
-                    #print("No rule ID found, skipping")
+                    logging.info("No rule ID found, skipping")
                     continue
+
+                logging.info(f"\n--- Processing Rule {rule_id} ---")
+                logging.info("Modified Data:")
+                #logging.debug(json.dumps(rule_data, indent=2))
 
                 # Get original trigger data from the retreive API
                 original_trigger = self.api_client.get_adjustment_rules_by_ids(rule_id)
                 if not original_trigger:
                     raise Exception(f"Could not retrieve original data for rule {rule_id}")
 
+                logging.info("\nOriginal Trigger Data:")
+                #logging.debug(json.dumps(original_trigger, indent=2))
+
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
+                if not self.api_client.verify_update_payload(original_trigger, payload):
+                    raise Exception(f"Invalid update payload for rule {rule_id}")
+
                 if not original_trigger:
-                    print(f"\nFailed to find rule {rule_id} in stored data")
+                    logging.info(f"\nFailed to find rule {rule_id} in stored data")
                     raise Exception(f"Could not find original data for rule {rule_id}")
 
                 # Create payload using both modified and original data
-                #print("Creating update payload")
+                #logging.info("Creating update payload")
                 payload = AdjustmentRuleUpdater.create_update_payload([rule_data], original_trigger)
 
-                #print(f"\nSending update for rule {rule_id}:")
-                #print(f"Modified data for rule: {json.dumps(rule_data, indent=2)}")
+                #logging.info(f"\nSending update for rule {rule_id}:")
+                #logging.info(f"Modified data for rule: {json.dumps(rule_data, indent=2)}")
 
                 # Send update request
                 base_hostname = self.api_client.base_hostname.rstrip('/')
                 url = f"{self.api_client.base_hostname}/api/v1/timekeeping/setup/adjustment_rules/{rule_id}"
                 # Debug print the URL and payload
-                #print(f"\nAttempting to update rule {rule_id}")
-                #print(f"URL: {url}")
-                #print(f"Payload: {json.dumps(payload, indent=2)}")
+                logging.info(f"\nAttempting to update rule {rule_id}")
+                logging.info(f"URL: {url}")
+                #logging.debug(f"Payload: {json.dumps(payload, indent=2)}")
 
                 # Set headers
                 headers = {
@@ -796,21 +811,25 @@ class MainWindow(QMainWindow):
                 }
 
                 # Make the request using PUT method
-                #print("Making PUT request")
+                logging.info("Sending PUT request")
                 response = requests.put(url, json=payload, headers=headers)
-                #print(f"Response status code: {response.status_code}")
+                logging.info(f"Response status code: {response.status_code}")
 
                 if response.status_code != 200:
-                    print(f"Error response: {response.text}")
+                    logging.error(f"Error response: {response.text}")
                     error_msg = f"Failed to update rule {rule_id}"
                     try:
                         error_details = response.json()
-                        print(f"\nError response: {json.dumps(error_details, indent=2)}")
+                        logging.error(f"\nError response: {json.dumps(error_details, indent=2)}")
                         if 'message' in error_details:
                             error_msg += f": {error_details['message']}"
                     except:
                         error_msg += f": {response.text}"
                     raise Exception(error_msg)
+                else:
+                    logging.info("Update successful")
+                    logging.info("Response:")
+                    #logging.debug(json.dumps(response.json(), indent=2))
 
             QMessageBox.information(self, "Success", "Rules updated successfully!")
             self.get_adjustment_rules_api()

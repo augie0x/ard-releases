@@ -232,6 +232,9 @@ class APIClient:
         Returns:
             dict: The rule data if found
         """
+
+        print(f"\n=== Retrieving Rules by IDs: {rule_ids} ===")
+
         if not self.access_token:
             raise Exception("Access token is missing. Please authenticate first.")
 
@@ -256,6 +259,9 @@ class APIClient:
             }
         }
 
+        print("\nRequest URL:", adjustment_rules_url)
+        print("Request payload:", json.dumps(payload, indent=2))
+
         headers = {
             'Authorization': f"{self.token_type} {self.access_token}",
             'Content-Type': 'application/json',
@@ -267,10 +273,10 @@ class APIClient:
 
         try:
             response = requests.post(adjustment_rules_url, json=payload, headers=headers)
-            #print(f"Response status: {response.status_code}")
+            print(f"Response status: {response.status_code}")
 
             if response.status_code == 401:
-                #print("Received 401, attempting token refresh")
+                print("Received 401, attempting token refresh")
                 if self.refresh_auth_token():
                     headers['Authorization'] = f"{self.token_type} {self.access_token}"
                     response = requests.post(adjustment_rules_url, json=payload, headers=headers)
@@ -279,7 +285,8 @@ class APIClient:
 
             if response.status_code == 200:
                 data = response.json()
-                #print(f"Retrieved rule data structure:")
+                print(f"Retrieved rule data structure:")
+                print(json.dumps(data, indent=2))
                 if data and len(data) > 0:
                     return data[0] if len(rule_ids) == 1 else data
                 else:
@@ -291,6 +298,7 @@ class APIClient:
                 raise Exception(error_message)
 
         except requests.exceptions.RequestException as e:
+            print(f"\nAPI request failed: {str(e)}")
             raise Exception(f"API request failed: {str(e)}")
 
     def get_adjustment_rules(self):
@@ -380,3 +388,31 @@ class APIClient:
         if 'client_secret' in masked:
             masked['client_secret'] = '******'
         return masked
+
+    def verify_update_payload(self, original_data, update_payload):
+        """Verify update payload matches original data structure"""
+        try:
+            # Verify rule ID matches
+            if str(original_data.get('id')) != str(update_payload.get('id')):
+                raise ValueError("Rule ID mismatch")
+
+            # Verify version structure
+            orig_version = original_data['ruleVersions']['adjustmentRuleVersion'][0]
+            update_version = update_payload['ruleVersions']['adjustmentRuleVersion'][0]
+
+            # Compare critical fields
+            if orig_version.get('versionId') != update_version.get('versionId'):
+                raise ValueError("Version ID mismatch")
+
+            # Verify trigger structure
+            orig_trigger = orig_version['triggers']['adjustmentTriggerForRule'][0]
+            update_trigger = update_version['triggers']['adjustmentTriggerForRule'][0]
+
+            if orig_trigger.get('versionNum') != update_trigger.get('versionNum'):
+                raise ValueError("Trigger version number mismatch")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Payload verification failed: {str(e)}")
+            return False

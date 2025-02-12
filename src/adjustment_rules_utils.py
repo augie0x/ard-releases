@@ -1,5 +1,8 @@
 # adjustment_rules_utils.py
 import copy
+import json
+import logging
+
 
 
 class AdjustmentRuleUpdater:
@@ -8,6 +11,7 @@ class AdjustmentRuleUpdater:
     This class handles the conversion of table data into properly structured API payloads
     for creating and updating adjustment rules.
     """
+    json = json
 
     @staticmethod
     def __parse_boolean(value):
@@ -102,15 +106,38 @@ class AdjustmentRuleUpdater:
             return value.strip().lower() == 'true'
         return default
 
-    @staticmethod
-    def create_update_payload(table_data, original_trigger=None):
+    @classmethod
+    def create_update_payload(cls, table_data, original_trigger=None):
         """Creates the update payload while preserving all unmodified triggers."""
-        if not isinstance(table_data, list):
+        """Creates the update payload while preserving all unmodified triggers."""
+        logging.info("\n=== Creating Update Payload ===")
+        logging.info("Input Table Data:")
+        #logging.debug(json.dumps(table_data, indent=2))
+        logging.info("\nOriginal Trigger Data:")
+        #logging.debug(  json.dumps(original_trigger, indent=2))
+
+        if not isinstance(table_data, list) or not table_data:
             raise ValueError("Table data must be a list")
 
-        rule_data = table_data[0]
         if not original_trigger:
             raise ValueError("Original trigger data is required for updates")
+
+        rule_data = table_data[0]
+        required_fields = ['Rule ID', 'Version Number', 'Adjustment Type']
+        missing_fields = [field for field in required_fields if field not in rule_data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+        if not original_trigger:
+            raise ValueError("Original trigger data is required for updates")
+
+        logging.info("\nValidating modification data:")
+        logging.info(f"Version Number (expected number): {rule_data.get('Version Number')}")
+        logging.info(f"Amount (expected number): {rule_data.get('Amount')}")
+        logging.info(f"Adjustment Type (expected string): {rule_data.get('Adjustment Type')}")
+
+        version_num = str(rule_data.get('Version Number'))
+        if not version_num.isdigit():
+            raise ValueError(f"Invalid version number format: {version_num}")
 
         # Get the original version and trigger data
         try:
@@ -177,6 +204,9 @@ class AdjustmentRuleUpdater:
                 "adjustmentRuleVersion": [updated_version]
             }
         }
+
+        logging.info("\n=== Final Update Payload ===")
+        #logging.debug(json.dumps(payload, indent=2))
 
         return payload
 
